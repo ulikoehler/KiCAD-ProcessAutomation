@@ -44,4 +44,3 @@ def export_and_read_position_file(pcb_filepath):
         pos_outfile.seek(0)
         pos_data = pos_outfile.read()
         return read_kicad_pos_file(StringIO(pos_data))
-    

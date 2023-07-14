@@ -17,8 +17,10 @@ class ChangeType(enum.IntEnum):
     Package = 2
     Position = 3
     Rotation = 4
-    Side = 5
-    
+    Side = 5,
+    Added = 6,
+    Removed = 7
+
 class Change(object):
     def __init__(self, ref, changetype, old, new):
         self.ref = ref
@@ -26,7 +28,12 @@ class Change(object):
         self.old = old
         self.new = new
     def __str__(self):
-        return f"[{self.ref}]: {self.changetype.name} change: {self.old} -> {self.new}"
+        description = f'{self.changetype.name} change'
+        # Format as 'Component added' or 'Component removed' for these change types
+        if self.changetype == ChangeType.Added or self.changetype == ChangeType.Removed:
+            description = f'Component {self.changetype.name}'
+
+        return f"[{self.ref}]: {description}: {self.old} -> {self.new}"
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -66,8 +73,14 @@ def compare_pcbs(old, new):
     # Sort changes by changetype, then by refdes
     changes.sort(key=lambda change: (change.changetype, change.ref))
 
+    # Add changes due to added or removed components
+    for refdes in added_refdes:
+        changes.append(Change(refdes, ChangeType.Added, None, refdes))
+    for refdes in removed_refdes:
+        changes.append(Change(refdes, ChangeType.Removed, refdes, None))
+
     return changes
-        
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Compare two KiCAD files')
     parser.add_argument('old', type=str, help='path to old KiCAD PCB')
@@ -77,7 +90,7 @@ if __name__ == "__main__":
     # Get filenames of old & new PCBs
     old_pcb = args.old
     new_pcb = args.new
-    
+
     # If the user gave a project file instead of a PCB file, try to guess the PCB filename
     if old_pcb.endswith(".kicad_pro") or old_pcb.endswith(".pro"):
         old_pcb = os.path.splitext(old_pcb)[0] + ".kicad_pcb"
@@ -85,12 +98,12 @@ if __name__ == "__main__":
     if new_pcb.endswith(".kicad_pro") or new_pcb.endswith(".pro"):
         new_pcb = os.path.splitext(new_pcb)[0] + ".kicad_pcb"
         print(f"Guesing new PCB filename from project file: {old_pcb}")
-    
+
     # Export position files and read them into pandas DataFrames
     old_pos = export_and_read_position_file(old_pcb)
     new_pos = export_and_read_position_file(new_pcb)
-    
+
     changes = compare_pcbs(old_pos, new_pos)
-    
+
     for change in changes:
         print(change)

@@ -33,21 +33,27 @@ if __name__ == "__main__":
     
     # Find Reference designators with multiple instances
     # This happens in case of panels being imported as board
-    #refdes_occurrence_counter = Counter()
-    #for refdes, row in position_table.iterrows():
-    #    refdes_occurrence_counter[refdes] += 1
-    ## Generate list of refdes with multiple instances from refdes_occurrence_counter
-    #duplicate_refdes_list = [refdes for refdes, count in refdes_occurrence_counter.items() if count > 1]
-    
+    refdes_occurrence_counter = Counter()
+    for refdes, row in position_table.iterrows():
+        refdes_occurrence_counter[refdes] += 1
+    # Generate list of refdes with multiple instances from refdes_occurrence_counter
+    duplicate_refdes_set = set([refdes for refdes, count in refdes_occurrence_counter.items() if count > 1])
     
     #
     # Generate Placement objects from position_table
     #
 
-    #refdes_seen_counter = Counter() # How many times a refdes has been seen (for duplicate refdes)
+    refdes_seen_counter = Counter() # How many times a refdes has been seen (for duplicate refdes)
     placements = []
     for refdes, row in position_table.iterrows():
         package_dash_value = f"{row['Package']}-{row['Val']}"
+        # If refdes is in duplicate_refdes_set, append a number to it
+        # This prevents OpenPnP from failing due to duplicate refdes
+        if refdes in duplicate_refdes_set:
+            refdes_seen_counter[refdes] += 1
+            refdes_seen_count = refdes_seen_counter[refdes]
+            refdes = f"{refdes}.{refdes_seen_count}"
+
         placement = Placement(refdes,
                 PlacementPosition(row["PosX"], row["PosY"], 0.0, row["Rot"]),
                 row["Side"],

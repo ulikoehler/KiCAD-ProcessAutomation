@@ -61,11 +61,14 @@ if __name__ == "__main__":
         # Normalize rotation to [0, 360)
         rotation = rotation % 360.
 
+        is_fiducial = "fiducial" in package_dash_value.lower()
+
         placement = Placement(refdes,
                 PlacementPosition(row["PosX"], row["PosY"], 0.0, rotation),
                 row["Side"],
                 package_dash_value,
-                True # Enabled
+                True, # Enabled
+                is_fiducial # is_fiducial
                 )
         placements.append(placement)
     

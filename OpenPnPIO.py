@@ -7,7 +7,7 @@ PlacementPosition = namedtuple("PlacementPosition", ["x", "y", "z", "rotation"])
 DefaultPlacementPosition = PlacementPosition(0.0, 0.0, 0.0, 0.0)
 
 # namedtuple Placement with attributes Ref, Position, Side, PartID, Enabled
-Placement = namedtuple("Placement", ["ref", "position", "side", "part_id", "enabled"])
+Placement = namedtuple("Placement", ["ref", "position", "side", "part_id", "enabled", "is_fiducial"])
 
 def create_placement(placements, placement: Placement):
     """
@@ -20,7 +20,7 @@ def create_placement(placements, placement: Placement):
     placement_element.set("id", placement.ref)
     placement_element.set("side", placement.side.capitalize())
     placement_element.set("part-id", placement.part_id)
-    placement_element.set("type", "Placement")
+    placement_element.set("type", "Placement" if not placement.is_fiducial else "Fiducial")
     placement_element.set("enabled", str(placement.enabled))
 
     # Create the location element

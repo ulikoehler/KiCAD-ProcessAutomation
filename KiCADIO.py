@@ -25,7 +25,7 @@ def pcb_and_sch_filenames(proj_filename):
     prefix, _ = os.path.splitext(proj_filename)
     return prefix + ".kicad_pcb", prefix + ".kicad_sch"
 
-def export_pos_from_pcb(pcb_filepath, pos_filepath, side=AssemblySide.Top, smd_only=True, exclude_through_hole=True, use_drill_file_origin=True):
+def export_pos_from_pcb(pcb_filepath, pos_filepath, side=AssemblySide.Top, smd_only=False, exclude_through_hole=True, use_drill_file_origin=True):
     """
     Export position .pos file from a given .kicad_pcb file
     """
@@ -41,7 +41,9 @@ def export_pos_from_pcb(pcb_filepath, pos_filepath, side=AssemblySide.Top, smd_o
     if use_drill_file_origin:
         extra_args += " --use-drill-file-origin"
     
-    run(f"kicad-cli pcb export pos '{pcb_filepath}' {extra_args} --units mm -o '{pos_filepath}'")
+    cmd = f"kicad-cli pcb export pos '{pcb_filepath}' {extra_args} --units mm -o '{pos_filepath}'"
+    print(cmd)
+    run(cmd)
 
 def export_bom_xml_from_sch(sch_filepath, xml_filepath):
     """

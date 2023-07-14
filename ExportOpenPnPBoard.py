@@ -7,6 +7,7 @@ from KiCADIO import *
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Export OpenPnP board XML from Ki')
     parser.add_argument('project_file', type=str, help='path to the KiCAD project file')
+    parser.add_argument('-r', '--rotation-offset', default=90., type=float, help='rotation offset to apply to all components')
     args = parser.parse_args()
 
     project_file = args.project_file
@@ -54,8 +55,14 @@ if __name__ == "__main__":
             refdes_seen_count = refdes_seen_counter[refdes]
             refdes = f"{refdes}.{refdes_seen_count}"
 
+        # Apply rotation offset
+        rotation = row["Rot"]
+        rotation += args.rotation_offset
+        # Normalize rotation to [0, 360)
+        rotation = rotation % 360.
+
         placement = Placement(refdes,
-                PlacementPosition(row["PosX"], row["PosY"], 0.0, row["Rot"]),
+                PlacementPosition(row["PosX"], row["PosY"], 0.0, rotation),
                 row["Side"],
                 package_dash_value,
                 True # Enabled

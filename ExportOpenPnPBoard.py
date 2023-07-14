@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections import Counter
 from OpenPnPIO import *
 from KiCADIO import *
 
@@ -30,8 +31,20 @@ if __name__ == "__main__":
     # Generate & parse position table
     position_table = export_and_read_position_file(pcb_filename)
     
+    # Find Reference designators with multiple instances
+    # This happens in case of panels being imported as board
+    #refdes_occurrence_counter = Counter()
+    #for refdes, row in position_table.iterrows():
+    #    refdes_occurrence_counter[refdes] += 1
+    ## Generate list of refdes with multiple instances from refdes_occurrence_counter
+    #duplicate_refdes_list = [refdes for refdes, count in refdes_occurrence_counter.items() if count > 1]
+    
+    
+    #
     # Generate Placement objects from position_table
-    # Generate Placement objects from position_table
+    #
+
+    #refdes_seen_counter = Counter() # How many times a refdes has been seen (for duplicate refdes)
     placements = []
     for refdes, row in position_table.iterrows():
         package_dash_value = f"{row['Package']}-{row['Val']}"

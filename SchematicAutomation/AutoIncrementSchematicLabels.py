@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
+"""
+This script allows quick incrementing of schematic labels.
+First, run the script in a background shell.
+
+When in the kicad schematic editor, select ONE (!) label and press
+Shift+Alt+Q to increment the label by [increment]
+
+By default, the increment is 1. To change the increment, press
+Shift+Alt+1 and enter the new increment in the dialog box.
+"""
+import subprocess
 import pyautogui
 import time
 import re
 import pyperclip
 import sexpdata
+
+current_increment = 1
 
 def increment_label(label, step=1):
     """
@@ -60,7 +73,7 @@ def run():
         print(sexpdata.dumps(selection))
         
         # compute new label
-        new_label = increment_label(label_value)
+        new_label = increment_label(label_value, step=current_increment)
         
         # Edit this label
         pyautogui.hotkey('e')
@@ -75,17 +88,33 @@ def run():
         # Press Enter key to save
         pyautogui.press('enter')
     return
-    
-    # If not found
-    # Press Enter key to save
-    pyautogui.press('enter')
-    # Press "o" key to exit
-    pyautogui.press('o')
+
+# Do something with the user input
+
+def change_increment():
+    """
+    Show a dialog box to get user input and update the global variable current_increment
+    """
+    global current_increment
+    # Start new thread that brings the dialog to the front
+    subprocess.Popen('sleep 0.5 ; wmctrl -F -a "Increment" -b add,above', shell=True)
+    #
+    try:
+        user_input = subprocess.check_output(f'zenity --title "Increment" --entry --text "Increment:" --entry-text "{current_increment}" --modal', shell=True).decode().strip()
+        try:
+            current_increment = int(user_input)
+        except ValueError:
+            print("Failed to parse user input: ", user_input)
+            return
+    except subprocess.CalledProcessError:
+        print("Increment edit cancelled")
+        return
 
 # Register hotkeys
 from system_hotkey import SystemHotkey
 hk = SystemHotkey()
 hk.register(('shift', 'alt', 'q'), callback=lambda x: run())
+hk.register(('shift', 'alt', '1'), callback=lambda x: change_increment())
 
 # Wait for exit
 while True:

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import pandas as pd
+from collections import namedtuple
+import os
 from invoke import run
 import os.path
 import tempfile
 from io import StringIO
+from bs4 import BeautifulSoup
 
 class AssemblySide(object):
     Top = 0
@@ -14,6 +17,18 @@ def read_kicad_pos_file(filename_or_file):
     pos = pd.read_table(filename_or_file, delim_whitespace=True, names=["Ref", "Val", "Package", "PosX", "PosY", "Rot", "Side"], comment="#")
     pos.set_index("Ref", inplace=True)
     return pos
+class KiCADFilenames(namedtuple("Filenames", ["pro", "pcb", "sch"])):
+    """
+    A class representing the top-level filenames of a KiCAD project.
+    """
+    def check_files_exist(self):
+        """
+        Check if all files in the Filenames tuple exist
+        """
+        for file in self:
+            if not os.path.exists(file):
+                raise FileNotFoundError(f"{file} does not exist.")
+        return True
 
 def pcb_and_sch_filenames(proj_filename):
     """
@@ -23,7 +38,11 @@ def pcb_and_sch_filenames(proj_filename):
         pos_outfile.flush()
     """
     prefix, _ = os.path.splitext(proj_filename)
-    return prefix + ".kicad_pcb", prefix + ".kicad_sch"
+    return KiCADFilenames(
+        prefix + ".kicad_pro",
+        prefix + ".kicad_pcb",
+        prefix + ".kicad_sch"
+    )
 
 def export_pos_from_pcb(pcb_filepath, pos_filepath, side=AssemblySide.Top, smd_only=False, exclude_through_hole=True, use_drill_file_origin=True):
     """
@@ -72,5 +91,6 @@ def export_and_read_bom_file(sch_filepath):
         bom_outfile.flush()
         # Read generated file
         bom_outfile.seek(0)
-        pos_data = bom_outfile.read()
-        raise NotImplementedError("TODO: parse XML")
+        bom_data = bom_outfile.read()
+        soup = BeautifulSoup(bom_data, 'xml')
+        return soup

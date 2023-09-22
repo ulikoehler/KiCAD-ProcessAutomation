@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os.path
 from collections import Counter
 from OpenPnPIO import *
 from KiCADIO import *
@@ -27,10 +28,10 @@ if __name__ == "__main__":
     project_name = os.path.splitext(os.path.basename(project_file))[0]
     
     # Compute schematic and PCB filename
-    pcb_filename, sch_filename = pcb_and_sch_filenames(project_file)
+    proj_files = kicad_project_filenames(project_file)
     
     # Generate & parse position table
-    position_table = export_and_read_position_file(pcb_filename)
+    position_table = export_and_read_position_file(proj_files.pcb)
     
     # Find Reference designators with multiple instances
     # This happens in case of panels being imported as board

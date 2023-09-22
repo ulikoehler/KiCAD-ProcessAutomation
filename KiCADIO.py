@@ -30,7 +30,7 @@ class KiCADFilenames(namedtuple("Filenames", ["pro", "pcb", "sch"])):
                 raise FileNotFoundError(f"{file} does not exist.")
         return True
 
-def pcb_and_sch_filenames(proj_filename):
+def kicad_project_filenames(proj_filename) -> KiCADFilenames:
     """
     Given a KiCAD project filename (or path),
     guess the PCB and schematic filenames.

@@ -12,11 +12,110 @@ class AssemblySide(object):
     Top = 0
     Bottom = 1
     Both = 2
+    
+AssemblyPosition = namedtuple("AssemblyPosition", ["x", "y", "rot", "side"])
+
+class MPNMissingError(object):
+    def __init__(self, refdes):
+        self.refdes = refdes
+        
+    def __str__(self):
+        return f"MPN missing for {self.refdes}"
+    
+class PositionMissingError(object):
+    def __init__(self, refdes):
+        self.refdes = refdes
+        
+    def __str__(self):
+        return f"Position missing for {self.refdes}"
+
+class Component(object):
+    def __init__(self, refdes, value, mpn, footprint, populate=True, position: AssemblyPosition = None):
+        self.refdes = refdes
+        self.value = value
+        self.mpn = mpn
+        self.footprint = footprint
+        self.populate = populate
+        self.position = position
+        
+    @property
+    def errors(self):
+        if self.mpn is None:
+            self.errors.append(MPNMissingError(self.refdes))
+        if self.position is None:
+            self.errors.append(PositionMissingError(self.refdes))
+            
+    @property
+    def mpn_or_value(self):
+        if self.mpn is None or self.mpn in ["", "NA", "-", "~"]:
+            return self.value
+        return self.mpn
+        
+    @property
+    def mpn_or_value_plus_footprint(self):
+        """
+        Returns the MPN if it exists, otherwise returns the value and footprint concatenated with a slash.
+        """
+        if self.mpn is None or self.mpn in ["", "NA", "-", "~"]:
+            return f"{self.value} / {self.footprint}"
+        return self.mpn
+        
+    def asdict(self):
+        ret = {
+            "refdes": self.refdes,
+            "value": self.value,
+            "mpn": self.mpn,
+            "footprint": self.footprint,
+            "populate": self.populate,
+        }
+        if self.position is not None:
+            # Merge dict with dict(self.position)
+            ret.update(dict(self.position))
+        return ret
+            
+    def __str__(self):
+        return f"Component({self.refdes})"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+
+def extract_components_from_bom(bom, pnp_positions):
+    components = []
+    for comp in bom.components.find_all("comp"):
+        # Find whether to populate or not (<property name="dnp"/>)
+        populate: bool = comp.find("property", {"name": "dnpa"}) == None
+        # Extract RefDes e.g. <comp ref="BC1">
+        refdes: str = comp["ref"]
+        # Extract value
+        value = text_or_None(comp.find("value"))
+        # Extract MPN
+        mpn = text_or_None(comp.find("field", {"name": "MPN"}))
+        # Extract footprint e.g. <footprint>KKS-Microcontroller-Board:10x10mm Laser Data Matrix</footprint>
+        footprint = comp.find("footprint").text
+        footprint_lib, _ , footprint_name = footprint.partition(":")
+        # Extract positions from PNP file
+        try:
+            position = pnp_positions.loc[refdes]
+        except KeyError:
+            position = None
+        # Add to component list
+        components.append(
+            Component(
+                refdes=refdes,
+                value=value,
+                mpn=mpn,
+                footprint=footprint_name,
+                populate=populate,
+                position=position
+            )
+        )
+    return components
 
 def read_kicad_pos_file(filename_or_file):
     pos = pd.read_table(filename_or_file, delim_whitespace=True, names=["Ref", "Val", "Package", "PosX", "PosY", "Rot", "Side"], comment="#")
     pos.set_index("Ref", inplace=True)
     return pos
+
 class KiCADFilenames(namedtuple("Filenames", ["pro", "pcb", "sch"])):
     """
     A class representing the top-level filenames of a KiCAD project.
@@ -61,7 +160,6 @@ def export_pos_from_pcb(pcb_filepath, pos_filepath, side=AssemblySide.Top, smd_o
         extra_args += " --use-drill-file-origin"
     
     cmd = f"kicad-cli pcb export pos '{pcb_filepath}' {extra_args} --units mm -o '{pos_filepath}'"
-    print(cmd)
     run(cmd)
 
 def export_bom_xml_from_sch(sch_filepath, xml_filepath):
@@ -94,3 +192,18 @@ def export_and_read_bom_file(sch_filepath):
         bom_data = bom_outfile.read()
         soup = BeautifulSoup(bom_data, 'xml')
         return soup
+
+def text_or_None(elem):
+    """
+    Returns the text of an element if it exists, otherwise returns None.
+    
+    Args:
+    elem: An element object.
+    
+    Returns:
+    The text of the element if it exists, otherwise None.
+    """
+    if elem is None:
+        return None
+    else:
+        return elem.text

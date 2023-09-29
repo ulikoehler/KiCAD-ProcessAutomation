@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
-from collections import namedtuple
+from collections import namedtuple, Counter
 import os
 from invoke import run
 import os.path
@@ -62,9 +62,9 @@ class Component(object):
         
     def asdict(self):
         ret = {
-            "refdes": self.refdes,
+            "Ref": self.refdes,
             "value": self.value,
-            "mpn": self.mpn,
+            "MPN": self.mpn,
             "footprint": self.footprint,
             "populate": self.populate,
         }
@@ -207,3 +207,29 @@ def text_or_None(elem):
         return None
     else:
         return elem.text
+
+def component_list_to_dataframe(components):
+    """
+    Convert a list of Component objects to a Pandas DataFrame.
+    The "Total count" column is automatically generated.
+    """
+    
+    # Count how many times this specific part is used
+    mpn_counter = Counter([c.mpn_or_value_plus_footprint for c in components if c.populate])
+    
+    # Create data frame from components
+    df = pd.DataFrame([c.asdict() for c in components])
+
+    [c.mpn_or_value_plus_footprint for c in components if c.populate]
+
+    # Build a map of RefDes => total count of this part
+    mpn_total_count_by_refdes = {}
+    for component in components:
+        if not component.populate:
+            continue
+        mpn = component.mpn_or_value_plus_footprint
+        mpn_total_count_by_refdes[component.refdes] = mpn_counter.get(mpn, 0)
+
+    # Add total MPN counter column
+    df['Total count'] = df['Ref'].map(lambda ref: mpn_total_count_by_refdes.get(ref, "NaN"))
+    return df

@@ -108,7 +108,6 @@ def extract_components_from_bom(bom, pnp_positions, extra_properties=[]):
             for property, value in component_extra_properties.items()
             if value is not None
         }
-        print(component_extra_properties)
         # Extract footprint e.g. <footprint>KKS-Microcontroller-Board:10x10mm Laser Data Matrix</footprint>
         footprint = comp.find("footprint").text
         footprint_lib, _ , footprint_name = footprint.partition(":")

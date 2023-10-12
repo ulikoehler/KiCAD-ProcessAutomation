@@ -11,7 +11,15 @@ import os
 
 parser = argparse.ArgumentParser(description='Export BOM and pick & place files from KiCAD project')
 parser.add_argument('filepath', type=str, help='Path to KiCAD project file')
+parser.add_argument('-o', '--output', type=str, help='Output filename')
 args = parser.parse_args()
+
+# Compute output filename
+output_filename = args.output
+if output_filename is None:
+    # Compute from input filename, split extension and append .BOM.xlsx
+    output_filename = os.path.splitext(args.filepath)[0] + ".BOM.xlsx"
+print(f"Exporting BOM to {output_filename}")
 
 filepath = os.path.expanduser(args.filepath)
 proj_filenames = kicad_project_filenames(filepath)
@@ -48,7 +56,7 @@ value_map_policies = {
 }
 
 # Export dataset to XLSX
-with pd.ExcelWriter("BOM.xlsx") as writer:
+with pd.ExcelWriter(output_filename) as writer:
     # Map values
     for column, value_map in value_map_policies.items():
         df[column] = df[column].map(value_map)

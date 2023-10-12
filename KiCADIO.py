@@ -90,7 +90,7 @@ def extract_components_from_bom(bom, pnp_positions, extra_properties=[]):
     components = []
     for comp in bom.components.find_all("comp"):
         # Find whether to populate or not (<property name="dnp"/>)
-        populate: bool = comp.find("property", {"name": "dnpa"}) == None
+        populate: bool = comp.find("property", {"name": "dnp"}) == None
         # Extract RefDes e.g. <comp ref="BC1">
         refdes: str = comp["ref"]
         # Extract value

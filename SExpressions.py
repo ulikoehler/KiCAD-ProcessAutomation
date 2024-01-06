@@ -62,23 +62,30 @@ def parse_sexpr(sexpr):
     # Convert parsed data to dictionary
     def to_dict(lst):
         d = {}
-        unnamed = []
-        for item in lst:
+        for i, item in enumerate(lst):
             if isinstance(item, list):
-                if len(item) == 1:
-                    unnamed.append(item[0])
-                else:
+                # Check if the first item in the list is a string
+                if isinstance(item[0], str):
                     key = item[0]
-                    if key in d:
+                    value = to_dict(item[0:])
+                    # If this is "just a string", replace it by a string
+                    if set(value.keys()) == {"tag", "unnamed"}:
+                        value = value["unnamed"]
+                    if key in d: # Handle keys with multiple values
                         if not isinstance(d[key], list):
                             d[key] = [d[key]]
-                        d[key].append(to_dict(item[1:]))
+                        d[key].append(value)
                     else:
-                        d[key] = to_dict(item[1:])
-            else:
-                unnamed.append(item)
-        if unnamed:
-            d['unnamed'] = unnamed
+                        d[key] = value
+                else:
+                    unnamed = [to_dict(sub_item) for sub_item in item]
+                    d.setdefault('unnamed', []).extend(unnamed)
+            else: # String attribute
+                # Handle the first unnamed value differently
+                if i == 0:
+                    d['tag'] = item
+                else:
+                    d.setdefault('unnamed', []).append(item)
         return d
 
     return to_dict(parsed_data[0]) # Parse the root element

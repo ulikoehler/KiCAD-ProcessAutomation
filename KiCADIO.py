@@ -30,13 +30,14 @@ class PositionMissingError(object):
         return f"Position missing for {self.refdes}"
 
 class Component(object):
-    def __init__(self, refdes, value, mpn, footprint, populate=True, position: AssemblyPosition = None):
+    def __init__(self, refdes, value, mpn, footprint, populate=True, position: AssemblyPosition = None, extra_properties={}):
         self.refdes = refdes
         self.value = value
         self.mpn = mpn
         self.footprint = footprint
         self.populate = populate
         self.position = position
+        self.extra_properties = extra_properties
         
     @property
     def errors(self):
@@ -70,7 +71,13 @@ class Component(object):
         }
         if self.position is not None:
             # Merge dict with dict(self.position)
-            ret.update(dict(self.position))
+            ret.update({
+                "PosX": self.position.PosX,
+                "PosY": self.position.PosY,
+                "Rot": self.position.Rot,
+                "Side": self.position.Side,
+            })
+        ret.update(self.extra_properties)
         return ret
             
     def __str__(self):
@@ -79,17 +86,28 @@ class Component(object):
     def __repr__(self) -> str:
         return self.__str__()
 
-def extract_components_from_bom(bom, pnp_positions):
+def extract_components_from_bom(bom, pnp_positions, extra_properties=[]):
     components = []
     for comp in bom.components.find_all("comp"):
         # Find whether to populate or not (<property name="dnp"/>)
-        populate: bool = comp.find("property", {"name": "dnpa"}) == None
+        populate: bool = comp.find("property", {"name": "dnp"}) == None
         # Extract RefDes e.g. <comp ref="BC1">
         refdes: str = comp["ref"]
         # Extract value
         value = text_or_None(comp.find("value"))
         # Extract MPN
         mpn = text_or_None(comp.find("field", {"name": "MPN"}))
+        # Extract additional properties
+        component_extra_properties = {
+            property: value_or_None(comp.find("property", {"name": property}))
+            for property in extra_properties
+        }
+        # Filter None values from extra properties
+        component_extra_properties = {
+            property: value
+            for property, value in component_extra_properties.items()
+            if value is not None
+        }
         # Extract footprint e.g. <footprint>KKS-Microcontroller-Board:10x10mm Laser Data Matrix</footprint>
         footprint = comp.find("footprint").text
         footprint_lib, _ , footprint_name = footprint.partition(":")
@@ -106,7 +124,8 @@ def extract_components_from_bom(bom, pnp_positions):
                 mpn=mpn,
                 footprint=footprint_name,
                 populate=populate,
-                position=position
+                position=position,
+                extra_properties=component_extra_properties
             )
         )
     return components
@@ -207,6 +226,21 @@ def text_or_None(elem):
         return None
     else:
         return elem.text
+    
+def value_or_None(elem):
+    """
+    Returns the value attribute of an element if it exists, otherwise returns None.
+    
+    Args:
+    elem: An element object.
+    
+    Returns:
+    The value of the element if it exists, otherwise None.
+    """
+    if elem is None:
+        return None
+    else:
+        return elem.get("value", None)
 
 def component_list_to_dataframe(components):
     """
@@ -219,8 +253,6 @@ def component_list_to_dataframe(components):
     
     # Create data frame from components
     df = pd.DataFrame([c.asdict() for c in components])
-
-    [c.mpn_or_value_plus_footprint for c in components if c.populate]
 
     # Build a map of RefDes => total count of this part
     mpn_total_count_by_refdes = {}

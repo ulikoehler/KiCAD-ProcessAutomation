@@ -246,7 +246,7 @@ SymbolCount = namedtuple('SymbolCount', ['symbols_with_error', 'symbols_with_war
 
 def represent_namedtuple(dumper, data):
     _dict = data._asdict()
-    _dict['type'] = type(data).__name__
+    _dict['_type'] = type(data).__name__
     return dumper.represent_dict(_dict)
 
 import collections

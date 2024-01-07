@@ -1,3 +1,5 @@
 pandas
 beautifulsoup4
 UliPlot
+httpx
+pyparsing>=3

@@ -107,7 +107,11 @@ def extract_datasheets(parsed_data):
     assert isinstance(parsed_data, dict), "parsed_data must be a dictionary"
     assert parsed_data.get('tag') == 'kicad_symbol_lib', "parsed_data must be a KiCad symbol library"
     datasheets = {}
-    for symbol in parsed_data.get('symbol', []):
+    symbols = parsed_data.get('symbol', [])
+    # If there is only a single symbol, emulate a list
+    if isinstance(symbols, dict):
+        symbols = [symbols]
+    for symbol in symbols:
         assert symbol.get('positional') is not None, "symbol must have positional data"
         assert len(symbol['positional']) > 0, "symbol must have at least one positional item"
         symbol_name = symbol["positional"][0]

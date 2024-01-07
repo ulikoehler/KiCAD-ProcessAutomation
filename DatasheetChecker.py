@@ -181,6 +181,8 @@ class DatasheetFetcher(object):
             # Update progress bar
             progress_bar.update(self.tasks_done - progress_bar.n)
             await asyncio.sleep(0.2)
+        # Update progress bar to finished
+        progress_bar.update()
         
         # Wait for all tasks in the queues to be processed
         for queue in queues.values():

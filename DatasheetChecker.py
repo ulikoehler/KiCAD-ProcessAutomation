@@ -323,6 +323,9 @@ if __name__ == "__main__":
     else:
         print(f"Invalid path argument, neither a file nor a directory: {args.path}")
         sys.exit(1)
+        
+    # Sort files lexicographically
+    files.sort()
     
     loop = asyncio.get_event_loop()
     for file in files:

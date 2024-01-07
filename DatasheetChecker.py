@@ -296,7 +296,7 @@ async def process_library(filename, outdir):
     print(f"Library: {library_name}")
     print(f"  Symbols with errors: {symbol_count.symbols_with_error}")
     print(f"  Symbols with warnings only: {symbol_count.symbols_with_warning_only}")
-    print(f"  Total symbols: {len(symbols_dict)}")
+    print(f"  Total symbols: {len(symbols_dict[library_name'])}")
     print()
     
 

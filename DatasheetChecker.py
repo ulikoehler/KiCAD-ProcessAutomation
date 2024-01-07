@@ -48,6 +48,10 @@ class DatasheetFetcher(object):
         if not url:
             results.append(DatasheetError(library=library, symbol=symbol, url=url, message=prefix + "Datasheet URL is empty"))
             return results
+
+        # "URL intentionally left empty":
+        if url == "~":
+           return results
         
         # Parse and validate the URL
         parsed_url = urlparse(url)

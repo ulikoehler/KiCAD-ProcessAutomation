@@ -316,7 +316,7 @@ if __name__ == "__main__":
     
     if os.path.isdir(args.path):
         # Process all files in the directory
-        files = [os.path.join(args.path, f) for f in os.listdir(args.path) if os.path.isfile(os.path.join(args.path, f))]
+        files = [os.path.join(args.path, f) for f in os.listdir(args.path) if os.path.isfile(os.path.join(args.path, f)) and f.endswith(".kicad_sym")]
     elif os.path.isfile(args.path):
         # Process a single file
         files = [args.path]
@@ -329,5 +329,6 @@ if __name__ == "__main__":
     
     loop = asyncio.get_event_loop()
     for file in files:
+        print(f"Checking {file}")
         loop.run_until_complete(process_library(file, args.outdir))
     

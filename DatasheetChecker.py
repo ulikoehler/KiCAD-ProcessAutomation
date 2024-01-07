@@ -245,7 +245,9 @@ def create_html_page_for_library(library_name, symbols_dict):
 SymbolCount = namedtuple('SymbolCount', ['symbols_with_error', 'symbols_with_warning_only'])
 
 def represent_namedtuple(dumper, data):
-    return dumper.represent_dict(data._asdict())
+    _dict = data._asdict()
+    _dict['type'] = type(data).__name__
+    return dumper.represent_dict(_dict)
 
 import collections
 from yaml.representer import Representer

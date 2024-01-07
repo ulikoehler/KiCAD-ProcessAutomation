@@ -2,8 +2,9 @@
 """
 Utilities for directly parsing & serializing S-expressions found in KiCad libraries etc.
 """
-
 from pyparsing import nestedExpr, Word, alphanums, dblQuotedString, OneOrMore, ParserElement
+
+__all__ = ["parse_sexpr", "extract_datasheets"]
 
 def parse_sexpr(sexpr):
     """
@@ -25,15 +26,15 @@ def parse_sexpr(sexpr):
           corresponds to the first element of a list in the S-expression. The values are either 
           strings, numbers, lists, or other dictionaries, depending on the structure of the 
           S-expression. Unnamed (positional) attributes within a list are stored in a list under 
-          the key 'unnamed'.
+          the key 'positional'.
 
     Example:
     Given the S-expression: 
     "(kicad_symbol_lib (version 20220914) (generator kicad_symbol_editor))", 
     the function will return:
-    {'version': {'unnamed': ['20220914']},
-    'generator': {'unnamed': ['kicad_symbol_editor']},
-    'unnamed': ['kicad_symbol_lib']}
+    {'version': {'positional': ['20220914']},
+    'generator': {'positional': ['kicad_symbol_editor']},
+    'positional': ['kicad_symbol_lib']}
 
     The function is robust and can handle complex nested structures, making it suitable for 
     parsing detailed configurations and data representations in S-expression format.
@@ -69,8 +70,11 @@ def parse_sexpr(sexpr):
                     key = item[0]
                     value = to_dict(item[0:])
                     # If this is "just a string", replace it by a string
-                    if set(value.keys()) == {"tag", "unnamed"}:
-                        value = value["unnamed"]
+                    if set(value.keys()) == {"tag", "positional"}:
+                        value = value["positional"]
+                        # If value is a list with only one item, replace it by the item
+                        if len(value) == 1:
+                            value = value[0]
                     if key in d: # Handle keys with multiple values
                         if not isinstance(d[key], list):
                             d[key] = [d[key]]
@@ -78,17 +82,42 @@ def parse_sexpr(sexpr):
                     else:
                         d[key] = value
                 else:
-                    unnamed = [to_dict(sub_item) for sub_item in item]
-                    d.setdefault('unnamed', []).extend(unnamed)
+                    positional = [to_dict(sub_item) for sub_item in item]
+                    d.setdefault('positional', []).extend(positional)
             else: # String attribute
                 # Handle the first unnamed value differently
                 if i == 0:
                     d['tag'] = item
                 else:
-                    d.setdefault('unnamed', []).append(item)
+                    d.setdefault('positional', []).append(item)
         return d
-
+    
     return to_dict(parsed_data[0]) # Parse the root element
+
+def extract_datasheets(parsed_data):
+    """
+    Extracts datasheets from KiCad symbol library data.
+
+    Args:
+        parsed_data (dict): Parsed data containing symbols and properties.
+
+    Returns:
+        dict: A dictionary mapping symbol names to datasheet URLs.
+    """
+    assert isinstance(parsed_data, dict), "parsed_data must be a dictionary"
+    assert parsed_data.get('tag') == 'kicad_symbol_lib', "parsed_data must be a KiCad symbol library"
+    datasheets = {}
+    for symbol in parsed_data.get('symbol', []):
+        assert symbol.get('positional') is not None, "symbol must have positional data"
+        assert len(symbol['positional']) > 0, "symbol must have at least one positional item"
+        symbol_name = symbol["positional"][0]
+        assert symbol.get('property') is not None, "symbol must have property data"
+        properties = symbol.get('property', [])
+        for prop in properties:
+            if prop.get('tag') == 'property' and 'Datasheet' in prop.get('positional', []):
+                datasheet_url = prop['positional'][1]  # Get the URL, which is the second item in the 'positional' list
+                datasheets[symbol_name] = datasheet_url
+    return datasheets
 
 # Example usage
 # s_expression = "(kicad_symbol_lib (version 20220914) (generator kicad_symbol_editor))"

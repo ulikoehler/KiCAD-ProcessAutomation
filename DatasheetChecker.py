@@ -28,6 +28,11 @@ class DatasheetFetcher(object):
     
     async def fetch_url(self, client, library, symbol, url, prefix="", redirects_left=3, warn_http=False):
         results = []
+
+        # Is there any URL at all?
+        if not url:
+            results.append(DatasheetError(library=library, symbol=symbol, url=url, message=prefix + "Datasheet URL is empty"))
+            return results
         
         # Parse and validate the URL
         parsed_url = urlparse(url)
@@ -171,7 +176,7 @@ class DatasheetFetcher(object):
                 tasks.append(task)
 
         # Wait for tasks to finish with progress bar
-        progress_bar = tqdm(total=self.tasks_total, desc=f"{library}.kicad_sym")
+        progress_bar = tqdm(total=self.tasks_total, desc=f"{library}.kicad_sym", leave=False)
         while self.tasks_done < self.tasks_total:
             # Update progress bar
             progress_bar.update(self.tasks_done - progress_bar.n)
@@ -287,7 +292,7 @@ async def process_library(filename, outdir):
         f.write(html_content)
 
     # Write results as YAML
-    symbol_count = count_symbols_by_status(symbols_dict)
+    symbol_count = count_symbols_by_status(symbols_dict[library_name])
     with open(os.path.join(outdir, f"{library_name}.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump({"statistics": symbol_count,
                         "results": symbols_dict[library_name]}, f)

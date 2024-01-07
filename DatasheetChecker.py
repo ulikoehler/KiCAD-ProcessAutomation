@@ -18,6 +18,21 @@ CONCURRENT_LIMIT_PER_HOST = 5  # Adjust this as needed
 # which returns a 403 error if the User-Agent header is not set to a browser-like value
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/88.0.4324.96 Chrome/88.0.4324.96 Safari/537.36'
 
+_headers = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'de-DE,de;q=0.9',
+    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Linux"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    'User-Agent': USER_AGENT
+}
+
 DatasheetWarning = namedtuple('DatasheetWarning', ['library', 'symbol', 'url', 'message'])
 DatasheetError = namedtuple('DatasheetError', ['library', 'symbol', 'url', 'message'])
 
@@ -51,7 +66,7 @@ class DatasheetFetcher(object):
             return results
         
         try:
-            response = await client.get(url, headers={'User-Agent': USER_AGENT}, timeout=10)
+            response = await client.get(url, headers=_headers, timeout=10)
 
             # Handle redirects
             if response.status_code == 301 or response.status_code == 302:

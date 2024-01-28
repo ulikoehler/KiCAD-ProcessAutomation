@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import glob
-import datetime
+import os
 import shutil
 import subprocess
 

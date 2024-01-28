@@ -117,10 +117,6 @@ class TitleBlockParser(object):
 
         return title_block_data if found_title_block else None
 
-
-
-
-
 class KiCadCIExporter(object):
     def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None):
         self.directory = directory
@@ -132,6 +128,12 @@ class KiCadCIExporter(object):
             self.revision = revision
         self.extra_attributes = extra_attributes or {}
         self.verbose = verbose
+        if verbose:
+            # Pipe run() stdout and stderr to the terminal
+            self._run_extra_args = {'stdout': None, 'stderr': None}
+        else: # not verbose
+            # Pipe run() stdout and stderr to /dev/null
+            self._run_extra_args = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
         
     def git_describe_tags(self):
         """
@@ -173,8 +175,11 @@ class KiCadCIExporter(object):
             TitleBlockParser.restore_backup(schematic_file)
         
         try:
-            pcb_filename = self.find_kicad_pcb_filenames()
-
+            pcb_filename = self.find_kicad_pcb_filename()
+            # Export STEP
+            self.export_3d_model(pcb_filename)
+            self.export_pcb_pdf(pcb_filename)
+            
         except ValueError as ex:
             print("No PCB files found: " + str(ex))
             pcb_filename = None
@@ -193,7 +198,7 @@ class KiCadCIExporter(object):
 
         # Run the command
         try:
-            subprocess.run(command, check=True)
+            subprocess.run(command, check=True, **self._run_extra_args)
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
         
@@ -244,8 +249,66 @@ class KiCadCIExporter(object):
             raise ValueError(f"The schematic file {schematic_filename} does not exist.")
 
         return schematic_filename
+    
+    def export_3d_model(self, pcb_filename):
+        step_filename = f"{os.path.splitext(pcb_filename)[0]}.step"
+        
+        step_filepath = os.path.join(self.outdir, os.path.basename(step_filename))
+        # Define the command
+        command = [
+            'kicad-cli', 'pcb', 'export', 'step', 
+            pcb_filename, '--subst-models', '--output',
+            step_filepath
+        ]
 
-    def find_kicad_pcb_filenames(self):
+        # Run the command
+        try:
+            subprocess.run(command, check=True, **self._run_extra_args)
+            if self.verbose:
+                print(f"Exported PCB '{pcb_filename}' 3D model to '{step_filepath}'")    
+        except subprocess.CalledProcessError as e:
+            print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
+
+    def export_pcb_pdf(self, pcb_filename):
+        top_filename = f"{os.path.splitext(pcb_filename)[0]}-Top.pdf"
+        bottom_filename = f"{os.path.splitext(pcb_filename)[0]}-Bottom.pdf"
+        
+        top_filepath = os.path.join(self.outdir, os.path.basename(top_filename))
+        bottom_filepath = os.path.join(self.outdir, os.path.basename(bottom_filename))
+
+        # Define the command
+        top_command = [
+            'kicad-cli', 'pcb', 'export', 'pdf', 
+            '--layers', 'Edge.Cuts,F.Cu,F.Mask,F.Silkscreen',
+            '--include-border-title',
+            '--output', top_filepath,
+            pcb_filename
+        ]
+        bottom_command = [
+            'kicad-cli', 'pcb', 'export', 'pdf', 
+            '--layers', 'Edge.Cuts,B.Cu,B.Mask,B.Silkscreen',
+            '--include-border-title',
+            '--output', bottom_filepath,
+            pcb_filename
+        ]
+
+        # Run the command
+        try:
+            subprocess.run(top_command, check=True, **self._run_extra_args)
+            if self.verbose:
+                print(f"Exported PCB '{pcb_filename}' top PDF to '{top_filepath}'")
+        except subprocess.CalledProcessError as e:
+            print(f"Command '{' '.join(top_command)}' returned non-zero exit status {e.returncode}.")
+    
+        try:
+            subprocess.run(bottom_command, check=True)
+            if self.verbose:
+                print(f"Exported PCB '{pcb_filename}' bottom PDF to '{bottom_filepath}'")
+        except subprocess.CalledProcessError as e:
+            print(f"Command '{' '.join(bottom_command)}' returned non-zero exit status {e.returncode}.")
+    
+    
+    def find_kicad_pcb_filename(self):
         """
         Find the KiCAD PCB files (.kicad_pcb) in the specified project file.
 

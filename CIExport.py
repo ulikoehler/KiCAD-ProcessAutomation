@@ -299,5 +299,3 @@ if __name__ == "__main__":
         extra_attributes=extra_attributes,
     )
     exporter.export_kicad_project()
-    
-    

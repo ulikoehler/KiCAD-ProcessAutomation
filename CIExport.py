@@ -122,7 +122,7 @@ class TitleBlockParser(object):
 
 
 class KiCadCIExporter(object):
-    def __init__(self, directory, revision=None, verbose=False, outdir="."):
+    def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None):
         self.directory = directory
         self.outdir = outdir
         self.project_filename = self.find_kicad_project(directory)
@@ -130,6 +130,7 @@ class KiCadCIExporter(object):
             self.revision = f"Git revision: {self.git_describe_tags()}"
         else:
             self.revision = revision
+        self.extra_attributes = extra_attributes or {}
         self.verbose = verbose
         
     def git_describe_tags(self):
@@ -161,6 +162,7 @@ class KiCadCIExporter(object):
             # TODO: Get the date from the git commit
             # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         }
+        tags.update(self.extra_attributes)
         for schematic_file in self.find_all_kicad_schematics():
             TitleBlockParser.update_file_inplace_with_backup(schematic_file, tags)
         # Export the schematic to PDF. kicad-cli will export all schematics even
@@ -267,6 +269,7 @@ if __name__ == "__main__":
     parser.add_argument('directory', type=str, help='The directory to process')
     parser.add_argument('-r', '--revision', type=str, default=None, help='Force using a specific revision tag. Defaults to using "git describe --long --tags"')
     parser.add_argument('-o', '--output', type=str, default=".", help='The output directory')
+    parser.add_argument('-a', '--attribute', action='append', type=str, help='Extra attributes in the form "key=value"')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
 
@@ -278,13 +281,22 @@ if __name__ == "__main__":
     
     if args.output:
         os.makedirs(args.output, exist_ok=True)
+        
+    # Parse the attributes into a dictionary
+    extra_attributes = {}
+    if args.attribute:
+        for attribute in args.attribute:
+            key, value = attribute.split('=')
+            extra_attributes[key] = value
+
     
     # Find the KiCAD project file (.kicad_pro) in the specified directory.
     exporter = KiCadCIExporter(
         args.directory,
         revision=args.revision,
         verbose=args.verbose,
-        outdir=args.output
+        outdir=args.output,
+        extra_attributes=extra_attributes,
     )
     exporter.export_kicad_project()
     

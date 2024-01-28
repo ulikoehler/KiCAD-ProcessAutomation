@@ -127,7 +127,7 @@ class KiCadCIExporter(object):
         self.outdir = outdir
         self.project_filename = self.find_kicad_project(directory)
         if revision is None:
-            self.revision = self.git_describe_tags()
+            self.revision = f"Git revision: {self.git_describe_tags()}"
         else:
             self.revision = revision
         self.verbose = verbose
@@ -157,7 +157,7 @@ class KiCadCIExporter(object):
             # Note: rev needs to be short
             "date": self.git_get_commit_date(),
             "rev": self.git_describe_short_revid(),
-            "comment 1": f"Git revision: {self.git_describe_tags()}",
+            "comment 1": self.revision,
             # TODO: Get the date from the git commit
             # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         }

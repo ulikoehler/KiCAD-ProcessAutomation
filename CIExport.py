@@ -118,7 +118,7 @@ class TitleBlockParser(object):
         return title_block_data if found_title_block else None
 
 class KiCadCIExporter(object):
-    def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None):
+    def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None, enable_step_export=True, enable_schematic_pdf_export=True, enable_pcb_pdf_export=True):
         self.directory = directory
         self.outdir = outdir
         self.project_filename = self.find_kicad_project(directory)
@@ -134,12 +134,15 @@ class KiCadCIExporter(object):
         else: # not verbose
             # Pipe run() stdout and stderr to /dev/null
             self._run_extra_args = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
+        self.enable_step_export = enable_step_export
+        self.enable_schematic_pdf_export = enable_schematic_pdf_export
+        self.enable_pcb_pdf_export = enable_pcb_pdf_export
         
     def git_describe_tags(self):
         """
         Get the git revision using 'git describe --long --tags'.
         """
-        return subprocess.check_output(['git', 'describe', '--long', '--tags'], cwd=self.directory).decode('utf-8').strip()
+        return subprocess.check_output(['git', 'describe', '--always', '--long', '--tags'], cwd=self.directory).decode('utf-8').strip()
         
     def git_describe_short_revid(self):
         """
@@ -307,7 +310,6 @@ class KiCadCIExporter(object):
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(bottom_command)}' returned non-zero exit status {e.returncode}.")
     
-    
     def find_kicad_pcb_filename(self):
         """
         Find the KiCAD PCB files (.kicad_pcb) in the specified project file.
@@ -334,6 +336,10 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', type=str, default=".", help='The output directory')
     parser.add_argument('-a', '--attribute', action='append', type=str, help='Extra attributes in the form "key=value"')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    
+    parser.add_argument('--no-step', action='store_true', help='Disable STEP export')
+    parser.add_argument('--no-schematic-pdf', action='store_true', help='Disable schematic PDF export')
+    parser.add_argument('--no-pcb-pdf', action='store_true', help='Disable PCB PDF export')
     args = parser.parse_args()
 
     if not os.path.isdir(args.directory):

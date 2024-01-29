@@ -189,7 +189,7 @@ class KiCadCIExporter(object):
             
     def export_kicad_schematic_pdf(self, schematic_filename):
         # Determine the output filename
-        output_filename = os.path.splitext(os.path.basename(schematic_filename))[0] + ".pdf"
+        output_filename = os.path.splitext(os.path.basename(schematic_filename))[0] + "-Schematic.pdf"
         output_path = os.path.join(self.outdir, output_filename)
         # Define the command
         command = [
@@ -273,8 +273,8 @@ class KiCadCIExporter(object):
             print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
 
     def export_pcb_pdf(self, pcb_filename):
-        top_filename = f"{os.path.splitext(pcb_filename)[0]}-Top.pdf"
-        bottom_filename = f"{os.path.splitext(pcb_filename)[0]}-Bottom.pdf"
+        top_filename = f"{os.path.splitext(pcb_filename)[0]}-PCB-Top.pdf"
+        bottom_filename = f"{os.path.splitext(pcb_filename)[0]}-PCB-Bottom.pdf"
         
         top_filepath = os.path.join(self.outdir, os.path.basename(top_filename))
         bottom_filepath = os.path.join(self.outdir, os.path.basename(bottom_filename))

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse
 import os
 import fnmatch
@@ -56,8 +57,11 @@ def main():
     parser.add_argument('kicad_project_file', type=str, help='Path to the *.kicad_pro file')
     parser.add_argument('new_name', type=str, help='New name for the project')
     args = parser.parse_args()
+    
+    if " " in args.new_name:
+        raise ValueError('The new name must not contain spaces (currently unsupported).')
 
-    kicad_project_path = args.kicad_project_file
+    kicad_project_path = os.path.abspath(args.kicad_project_file)
     new_name = args.new_name
 
     if not kicad_project_path.endswith('.kicad_pro'):

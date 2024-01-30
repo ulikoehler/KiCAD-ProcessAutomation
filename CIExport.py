@@ -259,7 +259,8 @@ class KiCadCIExporter(object):
         step_filepath = os.path.join(self.outdir, os.path.basename(step_filename))
         # Define the command
         command = [
-            'kicad-cli', 'pcb', 'export', 'step', 
+            'kicad-cli', 'pcb', 'export', 'step',
+            '--drill-origin', 
             pcb_filename, '--subst-models', '--output',
             step_filepath
         ]

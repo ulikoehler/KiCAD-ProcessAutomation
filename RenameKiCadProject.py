@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import fnmatch
 import re
 
 def is_binary(file_path):

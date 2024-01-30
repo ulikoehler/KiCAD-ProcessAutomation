@@ -21,7 +21,7 @@ def is_binary(file_path):
     # Check the content of the file
     try:
         with open(file_path, 'rb') as file:
-            chunk = file.read(1024)
+            chunk = file.read(32768)
             return b'\0' in chunk
     except:
         return True

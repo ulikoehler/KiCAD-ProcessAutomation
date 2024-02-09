@@ -123,9 +123,11 @@ class KiCadCIExporter(object):
         self.outdir = outdir
         self.project_filename = self.find_kicad_project(directory)
         if revision is None:
-            self.revision = f"Git revision: {self.git_describe_tags()}"
+            self.revision = self.git_describe_tags()
+            self.custom_revision = False
         else:
             self.revision = revision
+            self.custom_revision = True
         self.extra_attributes = extra_attributes or {}
         self.verbose = verbose
         if verbose:
@@ -159,11 +161,12 @@ class KiCadCIExporter(object):
     def export_kicad_project(self):
         main_schematic_filename = self.find_kicad_main_schematic()
         # Find all schematics and apply revision & date tags
+        comment1 = f"Git revision: {self.revision}" if not self.custom_revision else "Custom revision"
         tags = {
             # Note: rev needs to be short
             "date": self.git_get_commit_date(),
             "rev": self.git_describe_short_revid(),
-            "comment 1": self.revision,
+            "comment 1": comment1,
             # TODO: Get the date from the git commit
             # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         }
@@ -310,6 +313,23 @@ class KiCadCIExporter(object):
                 print(f"Exported PCB '{pcb_filename}' bottom PDF to '{bottom_filepath}'")
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(bottom_command)}' returned non-zero exit status {e.returncode}.")
+    
+    def export_pcb_gerbers(self, pcb_filename):
+        # Create the output sub-directory
+        gerber_dir = os.path.join(self.outdir, f"{os.path.basename(pcb_filename)}")
+        os.makedirs(gerber_dir, exist_ok=True)
+        # Define the command
+        command = [
+            'kicad-cli', 'pcb', 'export', 'gerbers',
+            pcb_filename, '--output', gerber_dir
+            '--use-drill-file-origin'
+        ]
+
+        # Run the command
+        try:
+            subprocess.run(command, check=True, **self._run_extra_args)
+        except subprocess.CalledProcessError as e:
+            print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
     
     def find_kicad_pcb_filename(self):
         """

@@ -185,6 +185,7 @@ class KiCadCIExporter(object):
             # Export STEP
             self.export_3d_model(pcb_filename)
             self.export_pcb_pdf(pcb_filename)
+            self.export_pcb_gerbers(pcb_filename)
             
         except ValueError as ex:
             print("No PCB files found: " + str(ex))
@@ -324,12 +325,16 @@ class KiCadCIExporter(object):
             pcb_filename, '--output', gerber_dir,
             '--use-drill-file-origin'
         ]
-
         # Run the command
         try:
             subprocess.run(command, check=True, **self._run_extra_args)
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
+        # Create ZIP from gerbers
+        zip_name = f"{os.path.basename(pcb_filename)}-Gerber-{self.revision}"
+        if self.verbose:
+            print(f"Creating ZIP file '{zip_name}' from gerbers in '{gerber_dir}'")
+        shutil.make_archive(zip_name, 'zip', gerber_dir)
     
     def find_kicad_pcb_filename(self):
         """
@@ -361,6 +366,7 @@ if __name__ == "__main__":
     parser.add_argument('--no-step', action='store_true', help='Disable STEP export')
     parser.add_argument('--no-schematic-pdf', action='store_true', help='Disable schematic PDF export')
     parser.add_argument('--no-pcb-pdf', action='store_true', help='Disable PCB PDF export')
+    parser.add_argument('--no-gerber', action='store_true', help='Disable PCB Gerber export')
     args = parser.parse_args()
 
     if not os.path.isdir(args.directory):

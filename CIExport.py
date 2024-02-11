@@ -331,10 +331,12 @@ class KiCadCIExporter(object):
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
         # Create ZIP from gerbers
-        zip_name = f"{os.path.basename(pcb_filename)}-Gerber-{self.revision}"
+        zip_name = os.path.join(self.outdir, f"{os.path.basename(pcb_filename)}-Gerber-{self.revision}")
         if self.verbose:
             print(f"Creating ZIP file '{zip_name}' from gerbers in '{gerber_dir}'")
         shutil.make_archive(zip_name, 'zip', gerber_dir)
+        # Delete the gerber directory after creating the ZIP
+        shutil.rmtree(gerber_dir)
     
     def find_kicad_pcb_filename(self):
         """

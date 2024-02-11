@@ -321,7 +321,7 @@ class KiCadCIExporter(object):
         # Define the command
         command = [
             'kicad-cli', 'pcb', 'export', 'gerbers',
-            pcb_filename, '--output', gerber_dir
+            pcb_filename, '--output', gerber_dir,
             '--use-drill-file-origin'
         ]
 

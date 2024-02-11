@@ -4,6 +4,7 @@ import glob
 import os
 import shutil
 import subprocess
+import tempfile
 
 class TitleBlockParser(object):
     """
@@ -317,26 +318,27 @@ class KiCadCIExporter(object):
     
     def export_pcb_gerbers(self, pcb_filename):
         # Create the output sub-directory
-        gerber_dir = os.path.join(self.outdir, f"{os.path.basename(pcb_filename)}")
-        os.makedirs(gerber_dir, exist_ok=True)
-        # Define the command
-        command = [
-            'kicad-cli', 'pcb', 'export', 'gerbers',
-            pcb_filename, '--output', gerber_dir,
-            '--use-drill-file-origin'
-        ]
-        # Run the command
-        try:
-            subprocess.run(command, check=True, **self._run_extra_args)
-        except subprocess.CalledProcessError as e:
-            print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
-        # Create ZIP from gerbers
-        zip_name = os.path.join(self.outdir, f"{os.path.basename(pcb_filename)}-Gerber-{self.revision}")
-        if self.verbose:
-            print(f"Creating ZIP file '{zip_name}' from gerbers in '{gerber_dir}'")
-        shutil.make_archive(zip_name, 'zip', gerber_dir)
-        # Delete the gerber directory after creating the ZIP
-        shutil.rmtree(gerber_dir)
+        canonical_project_name = os.path.splitext(os.path.basename(pcb_filename))[0]
+        # Export gerbers to a temporary directory
+        with tempfile.TemporaryDirectory() as gerber_dir:
+            # Define the command
+            command = [
+                'kicad-cli', 'pcb', 'export', 'gerbers',
+                pcb_filename, '--output', gerber_dir,
+                '--use-drill-file-origin'
+            ]
+            # Run the command
+            try:
+                subprocess.run(command, check=True, **self._run_extra_args)
+            except subprocess.CalledProcessError as e:
+                print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
+            # Create ZIP from gerbers
+            zip_name = os.path.join(self.outdir, f"{canonical_project_name}-Gerber-{self.revision}")
+            if self.verbose:
+                print(f"Creating ZIP file '{zip_name}' from gerbers in '{gerber_dir}'")
+            shutil.make_archive(zip_name, 'zip', gerber_dir)
+            # Delete the gerber directory after creating the ZIP
+            shutil.rmtree(gerber_dir)
     
     def find_kicad_pcb_filename(self):
         """

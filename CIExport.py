@@ -187,7 +187,7 @@ class KiCadCIExporter(object):
             self.export_3d_model(pcb_filename)
             self.export_pcb_pdf(pcb_filename)
             self.export_pcb_gerbers(pcb_filename)
-            
+            self.export_pcb_svg(pcb_filename)
         except ValueError as ex:
             print("No PCB files found: " + str(ex))
             pcb_filename = None
@@ -309,6 +309,51 @@ class KiCadCIExporter(object):
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(top_command)}' returned non-zero exit status {e.returncode}.")
     
+        try:
+            subprocess.run(bottom_command, check=True)
+            if self.verbose:
+                print(f"Exported PCB '{pcb_filename}' bottom PDF to '{bottom_filepath}'")
+        except subprocess.CalledProcessError as e:
+            print(f"Command '{' '.join(bottom_command)}' returned non-zero exit status {e.returncode}.")
+    
+    def export_pcb_svg(self, pcb_filename):
+        """
+        Export Top & bottom SVG. This differs from the PDF export in that it
+        does not include the border title etc.
+        """
+        top_filename = f"{os.path.splitext(pcb_filename)[0]}-PCB-Top.svg"
+        bottom_filename = f"{os.path.splitext(pcb_filename)[0]}-PCB-Bottom.svg"
+        
+        top_filepath = os.path.join(self.outdir, os.path.basename(top_filename))
+        bottom_filepath = os.path.join(self.outdir, os.path.basename(bottom_filename))
+
+        # Define the command
+        base_command = [
+            'kicad-cli', 'pcb', 'export', 'svg',
+        ]
+        extra_args = [
+            '--exclude-drawing-sheet',
+            '--page-size-mode', '2', # page size = only board area
+            pcb_filename
+        ]
+        top_command = base_command + [
+            '--layers', 'Edge.Cuts,F.Cu,F.Mask,F.Silkscreen',
+            '--output', top_filepath,
+        ] + extra_args
+        bottom_command = base_command + [
+            '--layers', 'Edge.Cuts,B.Cu,B.Mask,B.Silkscreen',
+            '--output', bottom_filepath,
+        ] + extra_args
+
+        # Run the command
+        # Export top
+        try:
+            subprocess.run(top_command, check=True, **self._run_extra_args)
+            if self.verbose:
+                print(f"Exported PCB '{pcb_filename}' top PDF to '{top_filepath}'")
+        except subprocess.CalledProcessError as e:
+            print(f"Command '{' '.join(top_command)}' returned non-zero exit status {e.returncode}.")
+        # Export bottom
         try:
             subprocess.run(bottom_command, check=True)
             if self.verbose:

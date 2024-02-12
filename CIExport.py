@@ -158,9 +158,9 @@ class KiCadCIExporter(object):
         return subprocess.check_output(['git', 'log', '-1', '--format=%cd', '--date=format:%Y-%m-%d'], cwd=self.directory).decode('utf-8').strip()
     
     def export_kicad_project(self):
-        main_schematic_filename = self.find_kicad_main_schematic()
         # Find all schematics and apply revision & date tags
         if self.enabled_exports["schematic_pdf"] is not False:
+            main_schematic_filename = self.find_kicad_main_schematic()
             comment1 = f"Git revision: {self.revision}" if not self.custom_revision else "Custom revision"
             tags = {
                 # Note: rev needs to be short
@@ -382,6 +382,7 @@ class KiCadCIExporter(object):
             drill_command = [
                 'kicad-cli', 'pcb', 'export', 'drill',
                 '--excellon-separate-th', # PTH & NPTH into separate file
+                '--drill-origin', 'plot',
                 '--output', gerber_dir_with_slash, # Slash: Hotfix for kicad-cli bug
                 pcb_filename
             ]

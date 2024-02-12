@@ -119,7 +119,7 @@ class TitleBlockParser(object):
         return title_block_data if found_title_block else None
 
 class KiCadCIExporter(object):
-    def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None, enable_step_export=True, enable_schematic_pdf_export=True, enable_pcb_pdf_export=True):
+    def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None, enabled_exports:dict={}):
         self.directory = directory
         self.outdir = outdir
         self.project_filename = self.find_kicad_project(directory)
@@ -137,9 +137,7 @@ class KiCadCIExporter(object):
         else: # not verbose
             # Pipe run() stdout and stderr to /dev/null
             self._run_extra_args = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
-        self.enable_step_export = enable_step_export
-        self.enable_schematic_pdf_export = enable_schematic_pdf_export
-        self.enable_pcb_pdf_export = enable_pcb_pdf_export
+        self.enabled_exports = enabled_exports
         
     def git_describe_tags(self):
         """
@@ -162,32 +160,37 @@ class KiCadCIExporter(object):
     def export_kicad_project(self):
         main_schematic_filename = self.find_kicad_main_schematic()
         # Find all schematics and apply revision & date tags
-        comment1 = f"Git revision: {self.revision}" if not self.custom_revision else "Custom revision"
-        tags = {
-            # Note: rev needs to be short
-            "date": self.git_get_commit_date(),
-            "rev": self.git_describe_short_revid(),
-            "comment 1": comment1,
-            # TODO: Get the date from the git commit
-            # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
-        }
-        tags.update(self.extra_attributes)
-        for schematic_file in self.find_all_kicad_schematics():
-            TitleBlockParser.update_file_inplace_with_backup(schematic_file, tags)
-        # Export the schematic to PDF. kicad-cli will export all schematics even
-        # if only the main one is given
-        self.export_kicad_schematic_pdf(main_schematic_filename)
-        # Restore backed up (original, without modified tags) versions of all schematics
-        for schematic_file in self.find_all_kicad_schematics():
-            TitleBlockParser.restore_backup(schematic_file)
+        if self.enabled_exports["schematic_pdf"] is not False:
+            comment1 = f"Git revision: {self.revision}" if not self.custom_revision else "Custom revision"
+            tags = {
+                # Note: rev needs to be short
+                "date": self.git_get_commit_date(),
+                "rev": self.git_describe_short_revid(),
+                "comment 1": comment1,
+                # TODO: Get the date from the git commit
+                # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+            }
+            tags.update(self.extra_attributes)
+            for schematic_file in self.find_all_kicad_schematics():
+                TitleBlockParser.update_file_inplace_with_backup(schematic_file, tags)
+            # Export the schematic to PDF. kicad-cli will export all schematics even
+            # if only the main one is given
+                self.export_kicad_schematic_pdf(main_schematic_filename)
+            # Restore backed up (original, without modified tags) versions of all schematics
+            for schematic_file in self.find_all_kicad_schematics():
+                TitleBlockParser.restore_backup(schematic_file)
         
+        # Find PCB file and export
         try:
             pcb_filename = self.find_kicad_pcb_filename()
-            # Export STEP
-            self.export_3d_model(pcb_filename)
-            self.export_pcb_pdf(pcb_filename)
-            self.export_pcb_gerbers(pcb_filename)
-            self.export_pcb_svg(pcb_filename)
+            if self.enabled_exports["step"] is not False:
+                self.export_3d_model(pcb_filename)
+            if self.enabled_exports["pcb_pdf"] is not False:
+                self.export_pcb_pdf(pcb_filename)
+            if self.enabled_exports["gerber"] is not False:
+                self.export_pcb_gerbers(pcb_filename)
+            if self.enabled_exports["pcb_svg"] is not False:
+                self.export_pcb_svg(pcb_filename)
         except ValueError as ex:
             print("No PCB files found: " + str(ex))
             pcb_filename = None
@@ -416,6 +419,7 @@ if __name__ == "__main__":
     parser.add_argument('--no-schematic-pdf', action='store_true', help='Disable schematic PDF export')
     parser.add_argument('--no-pcb-pdf', action='store_true', help='Disable PCB PDF export')
     parser.add_argument('--no-gerber', action='store_true', help='Disable PCB Gerber export')
+    parser.add_argument('--no-svg', action='store_true', help='Disable PCB SVG export')
     args = parser.parse_args()
 
     if not os.path.isdir(args.directory):
@@ -434,6 +438,14 @@ if __name__ == "__main__":
             key, value = attribute.split('=')
             extra_attributes[key] = value
 
+    # Which exports are enabled?
+    enabled_exports = {
+        "step": not args.no_step,
+        "schematic_pdf": not args.no_schematic_pdf,
+        "pcb_pdf": not args.no_pcb_pdf,
+        "gerber": not args.no_gerber,
+        "pcb_svg": not args.no_svg,
+    }
     
     # Find the KiCAD project file (.kicad_pro) in the specified directory.
     exporter = KiCadCIExporter(
@@ -442,5 +454,6 @@ if __name__ == "__main__":
         verbose=args.verbose,
         outdir=args.output,
         extra_attributes=extra_attributes,
+        enabled_exports=enabled_exports
     )
     exporter.export_kicad_project()

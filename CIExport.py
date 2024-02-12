@@ -365,21 +365,35 @@ class KiCadCIExporter(object):
             print(f"Command '{' '.join(bottom_command)}' returned non-zero exit status {e.returncode}.")
     
     def export_pcb_gerbers(self, pcb_filename):
+        """
+        Export all layers as Gerbers, plus drill files
+        """
         # Create the output sub-directory
         canonical_project_name = os.path.splitext(os.path.basename(pcb_filename))[0]
         # Export gerbers to a temporary directory
         with tempfile.TemporaryDirectory() as gerber_dir:
             # Define the command
-            command = [
+            gerber_command = [
                 'kicad-cli', 'pcb', 'export', 'gerbers',
                 pcb_filename, '--output', gerber_dir,
                 '--use-drill-file-origin'
             ]
-            # Run the command
+            gerber_dir_with_slash = gerber_dir + os.path.sep if not gerber_dir.endswith(os.path.sep) else gerber_dir
+            drill_command = [
+                'kicad-cli', 'pcb', 'export', 'drill',
+                '--excellon-separate-th', # PTH & NPTH into separate file
+                '--output', gerber_dir_with_slash, # Slash: Hotfix for kicad-cli bug
+                pcb_filename
+            ]
+            # Run the commands
             try:
-                subprocess.run(command, check=True, **self._run_extra_args)
+                subprocess.run(gerber_command, check=True, **self._run_extra_args)
             except subprocess.CalledProcessError as e:
-                print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
+                print(f"Command '{' '.join(gerber_command)}' returned non-zero exit status {e.returncode}.")
+            try:
+                subprocess.run(drill_command, check=True, **self._run_extra_args)
+            except subprocess.CalledProcessError as e:
+                print(f"Command '{' '.join(drill_command)}' returned non-zero exit status {e.returncode}.")
             # Create ZIP from gerbers
             zip_name = os.path.join(self.outdir, f"{canonical_project_name}-Gerber-{self.revision}")
             if self.verbose:

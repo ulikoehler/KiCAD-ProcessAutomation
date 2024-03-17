@@ -1,0 +1,26 @@
+stages:
+  - export
+
+export:
+  stage: export
+  image: kicad/kicad:8.0
+  before_script:
+    # Trick to download the script without cloning the whole repo
+    - python3 -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/ulikoehler/KiCAD-ProcessAutomation/master/CIExport.py', 'CIExport.py')"
+    # Fix git complaining about dubious ownership
+    - git config --global --add safe.directory $PWD
+    # Fix gitlab creating a shallow clone that might not have the correct tags for git describe
+    - git fetch --unshallow --tags -a || git fetch --tags -a
+    # Install pip for installing kiit
+    - python3 -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')"
+    - python3 get-pip.py --break-system-packages
+    # Install kikit for panelization
+    - python3 -m pip install 'kikit>=1.5.0' --break-system-packages
+  script:
+    # Panelize (all PCBs)
+    - PATH=$PATH:~/.local/bin ./panelize.sh
+    # Export all PCBs
+    - python3 CIExport.py --discover . -m -v -o output
+  artifacts:
+    paths:
+      - "output"

@@ -2,6 +2,7 @@
 import argparse
 import glob
 import os
+import os.path
 import shutil
 import subprocess
 import tempfile
@@ -119,10 +120,21 @@ class TitleBlockParser(object):
         return title_block_data if found_title_block else None
 
 class KiCadCIExporter(object):
-    def __init__(self, directory, revision=None, verbose=False, outdir=".", extra_attributes=None, enabled_exports:dict={}):
-        self.directory = directory
+    def __init__(self, arg, revision=None, verbose=False, outdir=".", extra_attributes=None, enabled_exports:dict={}):
+        # If arg is a dir, find the project file
+        if os.path.isdir(arg):
+            self.directory = arg
+            self.project_filename = self.find_kicad_project(arg)
+        elif os.path.isfile(arg) and arg.endswith(".kicad_pro"):
+            self.project_filename = arg
+            # Set directory to parent dir of [arg]
+            self.directory = os.path.dirname(arg)
+        elif os.path.isfile(arg):
+            raise ValueError(f"Project file '{arg}' does not end with .kicad_pro")
+        else:
+            raise ValueError(f"Project file '{arg}' does not exist or bad filename")
+           
         self.outdir = outdir
-        self.project_filename = self.find_kicad_project(directory)
         if revision is None:
             self.revision = self.git_describe_tags()
             self.custom_revision = False
@@ -422,9 +434,42 @@ class KiCadCIExporter(object):
         
         return kicad_pcb_file
 
+def find_kicad_project_files(directory):
+    """
+    Recursively searches the given directory for files with the '.kicad_pro' extension.
+
+    This function walks through all subdirectories of the given directory and collects
+    full paths to all files that end with '.kicad_pro'. It's useful for finding KiCad project files
+    in a large directory structure.
+
+    Parameters:
+    - directory (str): The root directory path as a string from which the search will begin.
+
+    Returns:
+    - list: A list of strings where each string is the full path to a file matching the '.kicad_pro' extension found within the directory or its subdirectories.
+
+    Example usage:
+    ---------------
+    directory_to_search = '/path/to/your/directory'
+    kicad_pro_files = find_kicad_pro_files(directory_to_search)
+    for file in kicad_pro_files:
+        print(file)
+
+    Note:
+    -----
+    This function does not follow symbolic links. It's designed to work with filesystem directories only.
+    """
+    matches = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.kicad_pro'):
+                matches.append(os.path.join(root, file))
+    return matches
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
-    parser.add_argument('directory', type=str, help='The directory to process')
+    parser.add_argument('directory', nargs='?', default=None, type=str, help='The directory to process')
+    parser.add_argument('-d', '--discover', type=str, default=None, help='Discover & export all KiCad projects within the given directory.')
     parser.add_argument('-r', '--revision', type=str, default=None, help='Force using a specific revision tag. Defaults to using "git describe --long --tags"')
     parser.add_argument('-o', '--output', type=str, default=".", help='The output directory')
     parser.add_argument('-a', '--attribute', action='append', type=str, help='Extra attributes in the form "key=value"')
@@ -437,12 +482,11 @@ if __name__ == "__main__":
     parser.add_argument('--no-svg', action='store_true', help='Disable PCB SVG export')
     args = parser.parse_args()
 
-    if not os.path.isdir(args.directory):
+    # args.directory must be given unless --discover
+    if args.discover is None and not os.path.isdir(args.directory):
         print(f"The provided directory argument '{args.directory}' is not a directory.")
         exit(1)
         
-    print(f"Processing directory '{args.directory}'")
-    
     if args.output:
         os.makedirs(args.output, exist_ok=True)
         
@@ -462,13 +506,37 @@ if __name__ == "__main__":
         "pcb_svg": not args.no_svg,
     }
     
-    # Find the KiCAD project file (.kicad_pro) in the specified directory.
-    exporter = KiCadCIExporter(
-        args.directory,
-        revision=args.revision,
-        verbose=args.verbose,
-        outdir=args.output,
-        extra_attributes=extra_attributes,
-        enabled_exports=enabled_exports
-    )
-    exporter.export_kicad_project()
+    if args.discover is not None:
+        # Discover KiCad projects recursively
+        projects = find_kicad_project_files(args.discover)
+        if args.verbose:
+            print("Discovered the following KiCad projects:")
+            for project in projects:
+                print(project)
+        
+        # Export each project
+        for project in projects:
+            if args.verbose:
+                print(f"Exporting project '{project}'")
+            exporter = KiCadCIExporter(
+                project,
+                revision=args.revision,
+                verbose=args.verbose,
+                outdir=args.output,
+                extra_attributes=extra_attributes,
+                enabled_exports=enabled_exports
+            )
+            exporter.export_kicad_project()
+        
+    else: # not discover 
+        # Find the KiCAD project file (.kicad_pro) in the specified directory.
+        print(f"Exporting project in '{args.directory}'")
+        exporter = KiCadCIExporter(
+            args.directory,
+            revision=args.revision,
+            verbose=args.verbose,
+            outdir=args.output,
+            extra_attributes=extra_attributes,
+            enabled_exports=enabled_exports
+        )
+        exporter.export_kicad_project()

@@ -106,25 +106,27 @@ class Model3DDownloader(object):
                 filepath = os.path.join(dirname, model_filename)
                 self.download_url_to_file(
                     Model3DDownloader.model_url(library_name, model_filename), filepath)
+                
+                # Try the other model type
+                alternate_model_filename = Model3DDownloader.model_other_type(model_filename)
+                if alternate_model_filename == model_filename:
+                    print(f"Alternate model '{library_name}/{model_filename}' not found")
+                    return False
+                alternate_filepath = os.path.join(dirname, alternate_model_filename)
+                print(f"Trying to download alternate model '{library_name}/{alternate_model_filename}'")
+                try:
+                    self.download_url_to_file(
+                        Model3DDownloader.model_url(library_name, alternate_model_filename), alternate_filepath)
+                except urllib.error.HTTPError as e2:
+                    if e2.code == 404:
+                        print(f"Model '{library_name}/{model_filename}' not found")
+                        return False
+                    else:
+                        raise
             except urllib.error.HTTPError as e:
                 # If not found, try again 
                 if e.code == 404:
-                    # Try the other model type
-                    alternate_model_filename = Model3DDownloader.model_other_type(model_filename)
-                    if alternate_model_filename == model_filename:
-                        print(f"Model '{library_name}/{model_filename}' not found")
-                        return False
-                    alternate_filepath = os.path.join(dirname, alternate_model_filename)
-                    print(f"Trying to download alternate model '{library_name}/{alternate_model_filename}'")
-                    try:
-                        self.download_url_to_file(
-                            Model3DDownloader.model_url(library_name, alternate_model_filename), alternate_filepath)
-                    except urllib.error.HTTPError as e2:
-                        if e2.code == 404:
-                            print(f"Model '{library_name}/{model_filename}' not found")
-                            return False
-                        else:
-                            raise
+                    return False
                 else:
                     raise
         else:
@@ -468,10 +470,9 @@ class KiCadCIExporter(object):
         _env = os.environ.copy()
         print(self.download_3dmodels, board_only)
         if self.download_3dmodels and not board_only:
-            for version in [6,7,8,9]:
-                print("Setting KICAD{}_3DMODEL_DIR to {}".format(version, self.model3d_dir.name))
+            for version in [5,6,7,8,9]:
                 _env[f"KICAD{version}_3DMODEL_DIR"] = self.model3d_dir.name + "/"
-        print(_env)
+
         # Run the command
         try:
             print(command)

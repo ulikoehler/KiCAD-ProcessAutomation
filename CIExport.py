@@ -475,7 +475,6 @@ class KiCadCIExporter(object):
 
         # Run the command
         try:
-            print(command)
             process = subprocess.run(command, check=True, env=_env, **self._run_extra_args)
             if self.verbose:
                 print(f"Exported PCB '{pcb_filename}' 3D model to '{step_filepath}'")    

@@ -204,6 +204,7 @@ class KiCadCIExporter(object):
             pcb_filename = self.find_kicad_pcb_filename()
             if self.enabled_exports["step"] is not False:
                 self.export_3d_model(pcb_filename)
+                self.export_3d_model(pcb_filename, board_only=True)
             if self.enabled_exports["pcb_pdf"] is not False:
                 self.export_pcb_pdf(pcb_filename)
             if self.enabled_exports["gerber"] is not False:
@@ -280,8 +281,8 @@ class KiCadCIExporter(object):
 
         return schematic_filename
     
-    def export_3d_model(self, pcb_filename):
-        step_filename = f"{os.path.splitext(pcb_filename)[0]}.step"
+    def export_3d_model(self, pcb_filename, board_only=False):
+        step_filename = f"{os.path.splitext(pcb_filename)[0]}{'-BoardOnly' if board_only else ''}.step"
         
         step_filepath = os.path.join(self.outdir, os.path.basename(step_filename))
         # Define the command
@@ -299,6 +300,8 @@ class KiCadCIExporter(object):
                 print(f"Exported PCB '{pcb_filename}' 3D model to '{step_filepath}'")    
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
+
+
 
     def export_pcb_pdf(self, pcb_filename):
         top_filename = f"{os.path.splitext(pcb_filename)[0]}-PCB-Top.pdf"
@@ -482,7 +485,8 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--attribute', action='append', type=str, help='Extra attributes in the form "key=value"')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
-    parser.add_argument('--no-step', action='store_true', help='Disable STEP export')
+    parser.add_argument('--no-step', action='store_true', help='Disable full STEP export')
+    parser.add_argument('--no-board-step', action='store_true', help='Disable board-only STEP export')
     parser.add_argument('--no-schematic-pdf', action='store_true', help='Disable schematic PDF export')
     parser.add_argument('--no-pcb-pdf', action='store_true', help='Disable PCB PDF export')
     parser.add_argument('--no-gerber', action='store_true', help='Disable PCB Gerber export')

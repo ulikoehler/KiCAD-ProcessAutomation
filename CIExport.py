@@ -74,7 +74,7 @@ class Model3DDownloader(object):
             return model_filename
         
     def download_all(self, model_paths):
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(4) as executor:
             futures = [executor.submit(self.download_one, model_path) for model_path in model_paths]
             for future in concurrent.futures.as_completed(futures):
                 future.result()

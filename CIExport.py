@@ -518,11 +518,21 @@ if __name__ == "__main__":
         for project in projects:
             if args.verbose:
                 print(f"Exporting project '{project}'")
+                
+            # Add postfix to output dir: relative path of project
+            # compared to discovery directory,
+            # so that every project gets its own directory
+            outpath = os.path.join(
+                args.output,
+                os.path.relpath(os.path.dirname(project), args.discover)
+            )
+            os.makedirs(outpath, exist_ok=True)
+                
             exporter = KiCadCIExporter(
                 project,
                 revision=args.revision,
                 verbose=args.verbose,
-                outdir=args.output,
+                outdir=outpath,
                 extra_attributes=extra_attributes,
                 enabled_exports=enabled_exports
             )

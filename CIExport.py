@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 import urllib.request
 import gzip
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 import zlib
 from io import BytesIO
 import re
@@ -58,6 +60,12 @@ class Model3DDownloader(object):
             return base_name + '.wrl'
         else:
             return model_filename
+        
+    def download_all(self, model_paths):
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self.download_one, model_path) for model_path in model_paths]
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
     
     def download_one(self, model_path):
         """
@@ -73,10 +81,14 @@ class Model3DDownloader(object):
         if match:
             version, library_name, model_filename = match.groups()
             
+            dirname = os.path.join(self.model_dir, library_name)
+            os.makedirs(dirname, exist_ok=True)
+            
             try:
                 if self.verbose:
                     print(f"Trying to download model '{library_name}/{model_filename}'")
-                filepath = os.path.join(self.model_dir, model_filename)
+    
+                filepath = os.path.join(dirname, model_filename)
                 self.download_url_to_file(
                     Model3DDownloader.model_url(library_name, model_filename), filepath)
             except urllib.error.HTTPError as e:
@@ -84,7 +96,7 @@ class Model3DDownloader(object):
                 if e.code == 404:
                     # Try the other model type
                     alternate_model_filename = Model3DDownloader.model_other_type(model_filename)
-                    alternate_filepath = os.path.join(self.model_dir, alternate_model_filename)
+                    alternate_filepath = os.path.join(dirname, alternate_model_filename)
                     print(f"Trying to download alternate model '{library_name}/{alternate_model_filename}'")
                     try:
                         self.download_url_to_file(
@@ -215,7 +227,8 @@ class TitleBlockParser(object):
         return title_block_data if found_title_block else None
 
 class KiCadCIExporter(object):
-    def __init__(self, arg, revision=None, verbose=False, outdir=".", extra_attributes=None, enabled_exports:dict={}):
+    def __init__(self, arg, revision=None, verbose=False, outdir=".", download_3dmodels=False, extra_attributes=None, enabled_exports:dict={}):
+        self.verbose = verbose
         # If arg is a dir, find the project file
         if os.path.isdir(arg):
             self.directory = arg
@@ -228,6 +241,11 @@ class KiCadCIExporter(object):
             raise ValueError(f"Project file '{arg}' does not end with .kicad_pro")
         else:
             raise ValueError(f"Project file '{arg}' does not exist or bad filename")
+        
+        self.download_3dmodels = download_3dmodels
+        if download_3dmodels:
+            self.model3d_dir = tempfile.TemporaryDirectory(suffix="3dmodels")
+            self.model3d_downloader = Model3DDownloader(self.model3d_dir.name, verbose=self.verbose)
            
         self.outdir = outdir
         if revision is None:
@@ -237,7 +255,6 @@ class KiCadCIExporter(object):
             self.revision = revision
             self.custom_revision = True
         self.extra_attributes = extra_attributes or {}
-        self.verbose = verbose
         if verbose:
             # Pipe run() stdout and stderr to the terminal
             self._run_extra_args = {'stdout': None, 'stderr': None}
@@ -245,6 +262,11 @@ class KiCadCIExporter(object):
             # Pipe run() stdout and stderr to /dev/null
             self._run_extra_args = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
         self.enabled_exports = enabled_exports
+    
+    def __del__(self):
+        pass
+        #if self.download_3dmodels:
+        #    self.model3d_dir.cleanup()
         
     def git_describe_tags(self):
         """
@@ -372,8 +394,47 @@ class KiCadCIExporter(object):
 
         return schematic_filename
     
+    def check_and_download_3dmodels(self, pcb_filename):
+        """
+        Check if 3D models are present and download them if not.
+        """
+        with tempfile.TemporaryDirectory() as tempdir:
+            if self.verbose:
+                print("Performing test export to check for missing 3D models")
+            # Export to a file we don't care about.
+            # We only care about the error messages from the command.
+            command = [
+                'kicad-cli', 'pcb', 'export', 'step',
+                pcb_filename, '--subst-models', '--output',
+                os.path.join(tempdir, "temp.step")
+            ]
+            # Run the command
+            try:
+                process = subprocess.run(command, check=True,
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                # Extract the missing models from the stdout/stderr from lines such as
+                # File not found: ${KICAD6_3DMODEL_DIR}/Resistor_SMD.3dshapes/R_0603_1608Metric.wrl
+                missing_models = []
+                stdout = process.stdout.decode('utf-8')
+                stderr = process.stderr.decode('utf-8')
+                for line in stdout.split('\n') + stderr.split('\n'):
+                    if "File not found:" in line:
+                        missing_models.append(line.partition(":")[-1].strip())
+                
+                # Download all!
+                self.model3d_downloader.download_all(missing_models)
+            except subprocess.CalledProcessError as e:
+                print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
+
     def export_3d_model(self, pcb_filename, board_only=False):
         step_filename = f"{os.path.splitext(pcb_filename)[0]}{'-BoardOnly' if board_only else ''}.step"
+        
+        # If autodownload of 3d models is enabled, check for missing models
+        if self.download_3dmodels:
+            self.check_and_download_3dmodels(pcb_filename)
+            # TODO DEBUG
+            import shutil
+            shutil.copytree(self.model3d_dir.name, "/ram/3d")
         
         step_filepath = os.path.join(self.outdir, os.path.basename(step_filename))
         # Define the command
@@ -383,10 +444,15 @@ class KiCadCIExporter(object):
             pcb_filename, '--subst-models', '--output',
             step_filepath
         ]
-
+        
+        env = os.environ.copy()
+        if self.download_3dmodels:
+            for version in [6,7,8,9]:
+                env[f"KICAD{version}_3DMODEL_DIR"] = self.model3d_dir.name
+        
         # Run the command
         try:
-            subprocess.run(command, check=True, **self._run_extra_args)
+            process = subprocess.run(command, check=True, env=env, **self._run_extra_args)
             if self.verbose:
                 print(f"Exported PCB '{pcb_filename}' 3D model to '{step_filepath}'")    
         except subprocess.CalledProcessError as e:
@@ -575,6 +641,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', type=str, default=".", help='The output directory')
     parser.add_argument('-a', '--attribute', action='append', type=str, help='Extra attributes in the form "key=value"')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('-m', '--auto-download-models', action='store_true', help='Automatically download missing 3D models')
     
     parser.add_argument('--no-step', action='store_true', help='Disable full STEP export')
     parser.add_argument('--no-board-step', action='store_true', help='Disable board-only STEP export')
@@ -637,7 +704,8 @@ if __name__ == "__main__":
                 verbose=args.verbose,
                 outdir=outpath,
                 extra_attributes=extra_attributes,
-                enabled_exports=enabled_exports
+                enabled_exports=enabled_exports,
+                download_3dmodels=args.auto_download_models,
             )
             exporter.export_kicad_project()
         
@@ -650,6 +718,7 @@ if __name__ == "__main__":
             verbose=args.verbose,
             outdir=args.output,
             extra_attributes=extra_attributes,
-            enabled_exports=enabled_exports
+            enabled_exports=enabled_exports,
+            download_3dmodels=args.auto_download_models,
         )
         exporter.export_kicad_project()

@@ -84,10 +84,11 @@ class Model3DDownloader(object):
                 if e.code == 404:
                     # Try the other model type
                     alternate_model_filename = Model3DDownloader.model_other_type(model_filename)
+                    alternate_filepath = os.path.join(self.model_dir, alternate_model_filename)
                     print(f"Trying to download alternate model '{library_name}/{alternate_model_filename}'")
                     try:
                         self.download_url_to_file(
-                            Model3DDownloader.model_url(library_name, model_filename), filepath)
+                            Model3DDownloader.model_url(library_name, alternate_model_filename), alternate_filepath)
                     except urllib.error.HTTPError as e2:
                         if e2.code == 404:
                             print(f"Model '{library_name}/{model_filename}' not found")

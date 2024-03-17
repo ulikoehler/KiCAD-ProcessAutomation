@@ -61,6 +61,18 @@ class Model3DDownloader(object):
         else:
             return model_filename
         
+    @staticmethod
+    def step_if_wrl(model_filename):
+        """
+        If model_filename is a .wrl file, return the equivalent .step filepath.
+        If it is a .step file, return the equivalent .wrl filepath.
+        """
+        base_name, ext = os.path.splitext(model_filename)
+        if ext.lower() == '.wrl':
+            return base_name + '.step'
+        else:
+            return model_filename
+        
     def download_all(self, model_paths):
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(self.download_one, model_path) for model_path in model_paths]
@@ -81,6 +93,9 @@ class Model3DDownloader(object):
         if match:
             version, library_name, model_filename = match.groups()
             
+            # Prefer STEP models since we are exporting STEP
+            model_filename = Model3DDownloader.step_if_wrl(model_filename)
+            
             dirname = os.path.join(self.model_dir, library_name)
             os.makedirs(dirname, exist_ok=True)
             
@@ -96,6 +111,9 @@ class Model3DDownloader(object):
                 if e.code == 404:
                     # Try the other model type
                     alternate_model_filename = Model3DDownloader.model_other_type(model_filename)
+                    if alternate_model_filename == model_filename:
+                        print(f"Model '{library_name}/{model_filename}' not found")
+                        return False
                     alternate_filepath = os.path.join(dirname, alternate_model_filename)
                     print(f"Trying to download alternate model '{library_name}/{alternate_model_filename}'")
                     try:
@@ -264,9 +282,8 @@ class KiCadCIExporter(object):
         self.enabled_exports = enabled_exports
     
     def __del__(self):
-        pass
-        #if self.download_3dmodels:
-        #    self.model3d_dir.cleanup()
+        if self.download_3dmodels:
+            self.model3d_dir.cleanup()
         
     def git_describe_tags(self):
         """
@@ -404,7 +421,7 @@ class KiCadCIExporter(object):
             # Export to a file we don't care about.
             # We only care about the error messages from the command.
             command = [
-                'kicad-cli', 'pcb', 'export', 'step',
+                'kicad-cli', 'pcb', 'export', 'step', '--no-dnp',
                 pcb_filename, '--subst-models', '--output',
                 os.path.join(tempdir, "temp.step")
             ]
@@ -420,7 +437,6 @@ class KiCadCIExporter(object):
                 for line in stdout.split('\n') + stderr.split('\n'):
                     if "File not found:" in line:
                         missing_models.append(line.partition(":")[-1].strip())
-                
                 # Download all!
                 self.model3d_downloader.download_all(missing_models)
             except subprocess.CalledProcessError as e:
@@ -429,12 +445,12 @@ class KiCadCIExporter(object):
     def export_3d_model(self, pcb_filename, board_only=False):
         step_filename = f"{os.path.splitext(pcb_filename)[0]}{'-BoardOnly' if board_only else ''}.step"
         
+        if self.verbose:
+            print(f"Exporting PCB '{pcb_filename}' 3D model{' (board-only)' if board_only else ''} to '{step_filename}'")
+        
         # If autodownload of 3d models is enabled, check for missing models
-        if self.download_3dmodels:
+        if self.download_3dmodels and not board_only:
             self.check_and_download_3dmodels(pcb_filename)
-            # TODO DEBUG
-            import shutil
-            shutil.copytree(self.model3d_dir.name, "/ram/3d")
         
         step_filepath = os.path.join(self.outdir, os.path.basename(step_filename))
         # Define the command
@@ -445,19 +461,25 @@ class KiCadCIExporter(object):
             step_filepath
         ]
         
-        env = os.environ.copy()
-        if self.download_3dmodels:
-            for version in [6,7,8,9]:
-                env[f"KICAD{version}_3DMODEL_DIR"] = self.model3d_dir.name
+        if board_only:
+            command.append('--board-only')
         
+        # Add the downloaded 3D model directory to the environment (if enabled)
+        _env = os.environ.copy()
+        print(self.download_3dmodels, board_only)
+        if self.download_3dmodels and not board_only:
+            for version in [6,7,8,9]:
+                print("Setting KICAD{}_3DMODEL_DIR to {}".format(version, self.model3d_dir.name))
+                _env[f"KICAD{version}_3DMODEL_DIR"] = self.model3d_dir.name + "/"
+        print(_env)
         # Run the command
         try:
-            process = subprocess.run(command, check=True, env=env, **self._run_extra_args)
+            print(command)
+            process = subprocess.run(command, check=True, env=_env, **self._run_extra_args)
             if self.verbose:
                 print(f"Exported PCB '{pcb_filename}' 3D model to '{step_filepath}'")    
         except subprocess.CalledProcessError as e:
             print(f"Command '{' '.join(command)}' returned non-zero exit status {e.returncode}.")
-
 
 
     def export_pcb_pdf(self, pcb_filename):

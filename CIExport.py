@@ -7,6 +7,10 @@ import shutil
 import subprocess
 import tempfile
 
+class NoSchematicFile(Exception):
+    """Raised when the schematic file is not found"""
+    pass
+
 class TitleBlockParser(object):
     """
     S-exp parse specifically for parsing (title_block ...)
@@ -172,25 +176,28 @@ class KiCadCIExporter(object):
     def export_kicad_project(self):
         # Find all schematics and apply revision & date tags
         if self.enabled_exports["schematic_pdf"] is not False:
-            main_schematic_filename = self.find_kicad_main_schematic()
-            comment1 = f"Git revision: {self.revision}" if not self.custom_revision else "Custom revision"
-            tags = {
-                # Note: rev needs to be short
-                "date": self.git_get_commit_date(),
-                "rev": self.git_describe_short_revid(),
-                "comment 1": comment1,
-                # TODO: Get the date from the git commit
-                # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
-            }
-            tags.update(self.extra_attributes)
-            for schematic_file in self.find_all_kicad_schematics():
-                TitleBlockParser.update_file_inplace_with_backup(schematic_file, tags)
-            # Export the schematic to PDF. kicad-cli will export all schematics even
-            # if only the main one is given
-                self.export_kicad_schematic_pdf(main_schematic_filename)
-            # Restore backed up (original, without modified tags) versions of all schematics
-            for schematic_file in self.find_all_kicad_schematics():
-                TitleBlockParser.restore_backup(schematic_file)
+            try:
+                main_schematic_filename = self.find_kicad_main_schematic()
+                comment1 = f"Git revision: {self.revision}" if not self.custom_revision else "Custom revision"
+                tags = {
+                    # Note: rev needs to be short
+                    "date": self.git_get_commit_date(),
+                    "rev": self.git_describe_short_revid(),
+                    "comment 1": comment1,
+                    # TODO: Get the date from the git commit
+                    # "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+                }
+                tags.update(self.extra_attributes)
+                for schematic_file in self.find_all_kicad_schematics():
+                    TitleBlockParser.update_file_inplace_with_backup(schematic_file, tags)
+                # Export the schematic to PDF. kicad-cli will export all schematics even
+                # if only the main one is given
+                    self.export_kicad_schematic_pdf(main_schematic_filename)
+                # Restore backed up (original, without modified tags) versions of all schematics
+                for schematic_file in self.find_all_kicad_schematics():
+                    TitleBlockParser.restore_backup(schematic_file)
+            except NoSchematicFile:
+                print("No schematic file found! Skipping schematic export.")
         
         # Find PCB file and export
         try:
@@ -269,7 +276,7 @@ class KiCadCIExporter(object):
 
         # Check if the schematic file exists
         if not os.path.isfile(schematic_filename):
-            raise ValueError(f"The schematic file {schematic_filename} does not exist.")
+            raise NoSchematicFile(f"The schematic file {schematic_filename} does not exist.")
 
         return schematic_filename
     

@@ -287,7 +287,7 @@ class KiCadCIExporter(object):
         # Define the command
         command = [
             'kicad-cli', 'pcb', 'export', 'step',
-            '--drill-origin', 
+            '--drill-origin', '--no-dnp',
             pcb_filename, '--subst-models', '--output',
             step_filepath
         ]

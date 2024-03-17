@@ -6,10 +6,100 @@ import os.path
 import shutil
 import subprocess
 import tempfile
+import urllib.request
+import gzip
+import zlib
+from io import BytesIO
+import re
 
 class NoSchematicFile(Exception):
     """Raised when the schematic file is not found"""
     pass
+
+class Model3DDownloader(object):
+    def __init__(self, model_dir, verbose=False):
+        self.verbose = verbose
+        self.model_dir = model_dir
+        os.makedirs(model_dir, exist_ok=True)
+        
+    def download_url_to_file(self, url, filename):
+        request = urllib.request.Request(url)
+        request.add_header('Accept-encoding', 'gzip, deflate')
+
+        response = urllib.request.urlopen(request)
+
+        if response.info().get('Content-Encoding') == 'gzip':
+            buffer = BytesIO(response.read())
+            f = gzip.GzipFile(fileobj=buffer)
+            data = f.read()
+        elif response.info().get('Content-Encoding') == 'deflate':
+            decompress = zlib.decompressobj(-zlib.MAX_WBITS)  # to handle deflate encoding
+            data = decompress.decompress(response.read()) + decompress.flush()
+        else:
+            data = response.read()
+
+        with open(filename, 'wb') as file:
+            file.write(data)
+            
+    @staticmethod
+    def model_url(library_name, model_filename):
+        return f"https://gitlab.com/kicad/libraries/kicad-packages3D/-/raw/master/{library_name}/{model_filename}?ref_type=heads&inline=false"
+    
+    @staticmethod
+    def model_other_type(model_filename):
+        """
+        If model_filename is a .wrl file, return the equivalent .step filepath.
+        If it is a .step file, return the equivalent .wrl filepath.
+        """
+        base_name, ext = os.path.splitext(model_filename)
+        if ext.lower() == '.wrl':
+            return base_name + '.step'
+        elif ext.lower() == '.step':
+            return base_name + '.wrl'
+        else:
+            return model_filename
+    
+    def download_one(self, model_path):
+        """
+        Accepts model paths like
+        ${KICAD6_3DMODEL_DIR}/Capacitor_SMD.3dshapes/C_0603_1608Metric.wrl
+        """
+        # Match the following parts of model_path, separated by '/'
+        #  a) ${KICAD(\d+)_3DMODEL_DIR}/
+        #  b) Library name
+        #  c) Model filename
+        # Extract the directory, library name, and model filename from the model_path
+        match = re.match(r'\$\{KICAD(\d+)_3DMODEL_DIR\}/(.+)/(.+)', model_path)
+        if match:
+            version, library_name, model_filename = match.groups()
+            
+            try:
+                if self.verbose:
+                    print(f"Trying to download model '{library_name}/{model_filename}'")
+                filepath = os.path.join(self.model_dir, model_filename)
+                self.download_url_to_file(
+                    Model3DDownloader.model_url(library_name, model_filename), filepath)
+            except urllib.error.HTTPError as e:
+                # If not found, try again 
+                if e.code == 404:
+                    # Try the other model type
+                    alternate_model_filename = Model3DDownloader.model_other_type(model_filename)
+                    print(f"Trying to download alternate model '{library_name}/{alternate_model_filename}'")
+                    try:
+                        self.download_url_to_file(
+                            Model3DDownloader.model_url(library_name, model_filename), filepath)
+                    except urllib.error.HTTPError as e2:
+                        if e2.code == 404:
+                            print(f"Model '{library_name}/{model_filename}' not found")
+                            return False
+                        else:
+                            raise
+                else:
+                    raise
+        else:
+            print(f"Unknown model path, can't download: {model_path}")
+            return False
+    
 
 class TitleBlockParser(object):
     """
@@ -494,7 +584,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # args.directory must be given unless --discover
-    if args.discover is None and not os.path.isdir(args.directory):
+    if args.discover is None and (args.directory is None or not os.path.isdir(args.directory)):
+        parser.print_help()
         print(f"The provided directory argument '{args.directory}' is not a directory.")
         exit(1)
         

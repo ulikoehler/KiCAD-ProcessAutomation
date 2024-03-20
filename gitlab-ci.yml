@@ -11,7 +11,7 @@ export:
     - git config --global --add safe.directory $PWD
     # Fix gitlab creating a shallow clone that might not have the correct tags for git describe
     - git fetch --unshallow --tags -a || git fetch --tags -a
-    # Install pip for installing kiit
+    # Install pip for installing kikit
     - if [ -f ./panelize.sh ]; then python3 -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')" ; fi
     - if [ -f ./panelize.sh ]; then python3 get-pip.py --break-system-packages ; fi
     # Install kikit for panelization

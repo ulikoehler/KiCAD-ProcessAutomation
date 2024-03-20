@@ -12,13 +12,13 @@ export:
     # Fix gitlab creating a shallow clone that might not have the correct tags for git describe
     - git fetch --unshallow --tags -a || git fetch --tags -a
     # Install pip for installing kiit
-    - python3 -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')"
-    - python3 get-pip.py --break-system-packages
+    - if [ -f ./panelize.sh ]; then python3 -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')" ; fi
+    - if [ -f ./panelize.sh ]; then python3 get-pip.py --break-system-packages ; fi
     # Install kikit for panelization
-    - python3 -m pip install 'kikit>=1.5.0' --break-system-packages
+    - if [ -f ./panelize.sh ]; then python3 -m pip install 'kikit>=1.5.0' --break-system-packages ; fi
   script:
     # Panelize (all PCBs)
-    - PATH=$PATH:~/.local/bin ./panelize.sh
+    - if [ -f ./panelize.sh ]; then PATH=$PATH:~/.local/bin ./panelize.sh; fi
     # Export all PCBs
     - python3 CIExport.py --discover . -m -v -o output
   artifacts:

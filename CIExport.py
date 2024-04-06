@@ -247,7 +247,7 @@ class TitleBlockParser(object):
         return title_block_data if found_title_block else None
 
 class KiCadCIExporter(object):
-    def __init__(self, arg, revision=None, verbose=False, outdir=".", download_3dmodels=False, extra_attributes=None, enabled_exports:dict={}):
+    def __init__(self, arg, revision=None, verbose=False, outdir=".", download_3dmodels=False, model3d_dir=None, extra_attributes=None, enabled_exports:dict={}):
         self.verbose = verbose
         # If arg is a dir, find the project file
         if os.path.isdir(arg):
@@ -264,9 +264,14 @@ class KiCadCIExporter(object):
         
         self.download_3dmodels = download_3dmodels
         if download_3dmodels:
-            self.model3d_dir = tempfile.TemporaryDirectory(suffix="3dmodels")
+            if model3d_dir is None:
+                # Create new (temporary) model directory which deletes itself on exit
+                self.model3d_dir = tempfile.TemporaryDirectory(suffix="3dmodels")
+            else:
+                self.model3d_dir = model3d_dir
+            # Create model downloader instance
             self.model3d_downloader = Model3DDownloader(self.model3d_dir.name, verbose=self.verbose)
-           
+        
         self.outdir = outdir
         if revision is None:
             self.revision = self.git_describe_tags()
@@ -664,6 +669,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--attribute', action='append', type=str, help='Extra attributes in the form "key=value"')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('-m', '--auto-download-models', action='store_true', help='Automatically download missing 3D models')
+    parser.add_argument('-c', '--model-cache-dir', help='Cache directory for downloaded 3d models. This directory may exist and contain pre-downloaded 3d models.')
     
     parser.add_argument('--no-step', action='store_true', help='Disable full STEP export')
     parser.add_argument('--no-board-step', action='store_true', help='Disable board-only STEP export')
@@ -705,6 +711,15 @@ if __name__ == "__main__":
             print("Discovered the following KiCad projects:")
             for project in projects:
                 print(project)
+                
+        # Create common 3d model cache directory
+        # (to avoid downloading the same models multiple times)
+        if args.model_cache_dir:
+            model3d_dir = args.model_cache_dir
+            os.makedirs(model3d_dir, exist_ok=True)
+        else:
+            # Create a temporary directory which deletes itself
+            model3d_dir = tempfile.TemporaryDirectory(suffix="3dmodels")
         
         # Export each project
         for project in projects:
@@ -728,10 +743,11 @@ if __name__ == "__main__":
                 extra_attributes=extra_attributes,
                 enabled_exports=enabled_exports,
                 download_3dmodels=args.auto_download_models,
+                model3d_dir=model3d_dir,
             )
             exporter.export_kicad_project()
         
-    else: # not discover 
+    else: # do not autodiscover projects
         # Find the KiCAD project file (.kicad_pro) in the specified directory.
         print(f"Exporting project in '{args.directory}'")
         exporter = KiCadCIExporter(

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-import os
-import pandas as pd
-from collections import Counter
-from typing import Dict
-from UliPlot.XLSX import auto_adjust_xlsx_column_width
-from KiCADIO import *
-
 import argparse
 import os
+from collections import Counter
+from typing import Dict
+
+import pandas as pd
+from UliPlot.XLSX import auto_adjust_xlsx_column_width
+
+from KiCADIO import *
 
 parser = argparse.ArgumentParser(description='Export BOM and pick & place files from KiCAD project')
 parser.add_argument('filepath', type=str, help='Path to KiCAD project file')

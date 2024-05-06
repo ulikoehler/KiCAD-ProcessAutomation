@@ -33,10 +33,8 @@ def process_file(filename) -> list[PartCanDeriveFromPart]:
     results = []
     
     for (pins, parts) in identical_pins.items():
-        for i in range(len(parts)):
-            for j in range(i+1, len(parts)):
-                part_i = parts[i]
-                part_j = parts[j]
+        for i, part_i in enumerate(parts):
+            for part_j in parts[i+1:]:
                 graphical_i = symbols_to_graphical_map[part_i]
                 graphical_j = symbols_to_graphical_map[part_j]
                 graphical_i_set = set(graphical_i)

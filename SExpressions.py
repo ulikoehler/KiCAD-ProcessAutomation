@@ -3,8 +3,25 @@
 Utilities for directly parsing & serializing S-expressions found in KiCad libraries etc.
 """
 from pyparsing import nestedExpr, Word, alphanums, dblQuotedString, OneOrMore, ParserElement
+from collections import namedtuple
 
-__all__ = ["parse_sexpr", "extract_datasheets"]
+__all__ = [
+    "parse_sexpr", "read_sexpr", "extract_datasheets", "Pin",
+    "extract_symbols_to_pins_map"
+]
+
+Pin = namedtuple('Pin', ['name', 'number', 'type', 'rotation', 'x', 'y'])
+
+def read_sexpr(filename_or_filelike):
+    """
+    Read the given filename or file-like object
+    and perform parse_sexpr on it
+    """
+    if isinstance(filename_or_filelike, str):
+        with open(filename_or_filelike, "r", encoding="utf-8") as fin:
+            return parse_sexpr(fin.read())
+    else:
+        return parse_sexpr(filename_or_filelike.read())
 
 def parse_sexpr(sexpr):
     """
@@ -122,6 +139,54 @@ def extract_datasheets(parsed_data):
                 datasheet_url = prop['positional'][1]  # Get the URL, which is the second item in the 'positional' list
                 datasheets[symbol_name] = datasheet_url
     return datasheets
+
+def extract_symbols_to_pins_map(tree):
+    symbol_to_pins_map = {}
+    
+    symbols = tree.get('symbol', [])
+
+    # If there is only a single symbol, emulate a list
+    if isinstance(symbols, dict):
+        symbols = [symbols]
+    for symbol in symbols:
+        assert symbol.get('positional') is not None, "symbol must have positional data"
+        assert len(symbol['positional']) > 0, "symbol must have at least one positional item"
+        symbol_name = symbol["positional"][0]
+        assert symbol.get('property') is not None, "symbol must have property data"
+
+        extends = symbol.get("extends")
+        # Skip extended symbols
+        if extends is not None:
+            # Skip this symbol
+            continue
+        # Iterate sub-symbols which contain the pins
+        subsymbols = symbol.get("symbol")
+        if not isinstance(subsymbols, list):
+            subsymbols = [subsymbols]
+            
+        current_symbol_pins = []
+        
+        for subsymbol in subsymbols:
+            if "pin" in subsymbol:
+                # Iterate pins
+                pins = subsymbol["pin"]
+                if not isinstance(pins, list):
+                    pins = [pins]
+                for pin in pins:
+                    pin_type = pin["positional"][0] # e.g. 'passive'
+                    x, y, rotation = pin["at"]
+                    x, y, rotation = float(x), float(y), int(rotation)
+                    
+                    pin_name = pin["name"]["positional"][0]
+                    pin_number = pin["number"]["positional"][0]
+                    pin_obj = Pin(pin_name, pin_number, pin_type, rotation, x, y)
+                    current_symbol_pins.append(pin_obj)
+        
+        # Sort pin list by number
+        current_symbol_pins.sort(key=lambda x: int(x.number))
+        # Add to symbol map
+        symbol_to_pins_map[symbol_name] = current_symbol_pins
+    return symbol_to_pins_map
 
 # Example usage
 # s_expression = "(kicad_symbol_lib (version 20220914) (generator kicad_symbol_editor))"

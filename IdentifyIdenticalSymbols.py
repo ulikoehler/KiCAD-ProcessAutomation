@@ -37,8 +37,8 @@ def process_file(filename) -> list[PartCanDeriveFromPart]:
             for j in range(i+1, len(parts)):
                 part_i = parts[i]
                 part_j = parts[j]
-                graphical_i = symbol_to_graphical_map[part_i]
-                graphical_j = symbol_to_graphical_map[part_j]
+                graphical_i = symbols_to_graphical_map[part_i]
+                graphical_j = symbols_to_graphical_map[part_j]
                 graphical_i_set = set(graphical_i)
                 graphical_j_set = set(graphical_j)
 
@@ -48,7 +48,7 @@ def process_file(filename) -> list[PartCanDeriveFromPart]:
                 percentage = len(intersection) / len(union) * 100
                 if percentage >= 99.0:
                     results.append(PartCanDeriveFromPart(part_i, part_j, percentage))
-    return result
+    return results
     
                     
 def print_results(results: list[PartCanDeriveFromPart]):

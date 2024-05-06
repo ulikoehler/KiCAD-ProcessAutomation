@@ -7,10 +7,16 @@ from collections import namedtuple
 
 __all__ = [
     "parse_sexpr", "read_sexpr", "extract_datasheets", "Pin",
-    "extract_symbols_to_pins_map"
+    "extract_symbols_to_pins_map", "extract_graphical_texts",
+    "extract_graphical_rectangles", "extract_graphical_polylines",
+    "extract_symbols_to_graphical_elements_map"
 ]
 
 Pin = namedtuple('Pin', ['name', 'number', 'type', 'rotation', 'x', 'y'])
+
+GraphicalText = namedtuple("GraphicalText", ["text", "x", "y", "rotation"])
+GraphicalRectangle = namedtuple("GraphicalRectangle", ["start", "end", "fill"])
+GraphicalPolyline = namedtuple("GraphicalPolyline", ["points"])
 
 def read_sexpr(filename_or_filelike):
     """
@@ -140,7 +146,7 @@ def extract_datasheets(parsed_data):
                 datasheets[symbol_name] = datasheet_url
     return datasheets
 
-def extract_symbols_to_pins_map(tree):
+def extract_symbols_to_pins_map(tree) -> dict[str, Pin]:
     symbol_to_pins_map = {}
     
     symbols = tree.get('symbol', [])
@@ -187,6 +193,95 @@ def extract_symbols_to_pins_map(tree):
         # Add to symbol map
         symbol_to_pins_map[symbol_name] = current_symbol_pins
     return symbol_to_pins_map
+
+def extract_graphical_texts(texts):
+    if not isinstance(texts, list):
+        texts = [texts]
+    graphical_texts = []
+    for text in texts:
+        text_content = text["positional"][0]
+        x, y, rotation = text["at"]
+        x, y, rotation = float(x), float(y), int(rotation)
+        graphical_texts.append(GraphicalText(text_content, x, y, rotation))
+    return graphical_texts
+
+def extract_graphical_rectangles(rectangles):
+    if not isinstance(rectangles, list):
+        rectangles = [rectangles]
+    graphical_rectangles = []
+    for rectangle in rectangles:
+        start_x, start_y = rectangle["start"]
+        end_x, end_y = rectangle["end"]
+        start_x, start_y = float(start_x), float(start_y)
+        end_x, end_y = float(end_x), float(end_y)
+        fill = rectangle.get("fill", {}).get("type")
+        graphical_rectangles.append(GraphicalRectangle((start_x, start_y), (end_x, end_y), fill))
+    return graphical_rectangles
+
+def extract_graphical_polylines(polylines):
+    if not isinstance(polylines, list):
+        polylines = [polylines]
+    graphical_polylines = []
+    for polyline in polylines:
+        points = polyline.get("pts", []).get("xy", [])
+        if points:
+            # First elements of [points] is start x,y coordinate
+            # pop those from points
+            current_polyline_points = []
+            if len(points) >= 2 and isinstance(points[0], str) and isinstance(points[1], str):
+                start_x, start_y = float(points.pop(0)), float(points.pop(0))
+                current_polyline_points.append((start_x, start_y))
+            for xy_pair in points:
+                x, y = float(xy_pair[0]), float(xy_pair[1])
+                current_polyline_points.append((x, y))
+            graphical_polylines.append(GraphicalPolyline(tuple(current_polyline_points)))
+    return graphical_polylines
+
+def extract_symbols_to_graphical_elements_map(tree):
+
+    symbols = tree.get('symbol', [])
+    
+    symbol_to_graphical_map = {}
+
+    # If there is only a single symbol, emulate a list
+    if isinstance(symbols, dict):
+        symbols = [symbols]
+    for symbol in symbols:
+        assert symbol.get('positional') is not None, "symbol must have positional data"
+        assert len(symbol['positional']) > 0, "symbol must have at least one positional item"
+        symbol_name = symbol["positional"][0]
+        assert symbol.get('property') is not None, "symbol must have property data"
+
+        extends = symbol.get("extends")
+        # Skip extended symbols
+        if extends is not None:
+            # Skip this symbol
+            continue
+        # Iterate sub-symbols which contain the pins
+        subsymbols = symbol.get("symbol")
+        if not isinstance(subsymbols, list):
+            subsymbols = [subsymbols]
+            
+        current_symbol_graphical = []
+        
+        for subsymbol in subsymbols:
+            # Extract texts
+            texts = subsymbol.get("text", [])
+            current_symbol_graphical += extract_graphical_texts(texts)
+            # Extract rectangles
+            rectangles = subsymbol.get("rectangle", [])
+            current_symbol_graphical += extract_graphical_rectangles(rectangles)
+            # Extract polylines
+            polylines = subsymbol.get("polyline", [])
+            current_symbol_graphical += extract_graphical_polylines(polylines)
+            # NOTE: Arcs are currently not processed
+            # NOTE: Pins are not processed here
+            
+            # Sort current_symbol_graphical by str representation
+            current_symbol_graphical = sorted(current_symbol_graphical, key=lambda x: str(x))
+            
+            symbol_to_graphical_map[symbol_name] = current_symbol_graphical
+    return symbol_to_graphical_map
 
 # Example usage
 # s_expression = "(kicad_symbol_lib (version 20220914) (generator kicad_symbol_editor))"

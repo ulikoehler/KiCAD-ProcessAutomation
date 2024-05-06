@@ -189,7 +189,7 @@ def extract_symbols_to_pins_map(tree) -> dict[str, Pin]:
                     current_symbol_pins.append(pin_obj)
         
         # Sort pin list by number
-        current_symbol_pins.sort(key=lambda x: int(x.number))
+        current_symbol_pins.sort(key=lambda x: x.number)
         # Add to symbol map
         symbol_to_pins_map[symbol_name] = current_symbol_pins
     return symbol_to_pins_map

@@ -7,7 +7,7 @@ from collections import namedtuple
 
 from SExpressions import *
 
-PartCanDeriveFromPart = namedtuple("PartCanDeriveFromPart", ["a", "b", "similarity"])
+PartCanDeriveFromPart = namedtuple("PartCanDeriveFromPart", ["filename", "a", "b", "similarity"])
 
 def extract_identical_pins_groups(symbols_to_pins_map):
     pins_to_symbols_map = {}
@@ -30,9 +30,9 @@ def process_file(filename) -> list[PartCanDeriveFromPart]:
     
     identical_pins = extract_identical_pins_groups(symbols_to_pins_map)
     
-    results = []
+    results: list[PartCanDeriveFromPart] = []
     
-    for (pins, parts) in identical_pins.items():
+    for (_pins, parts) in identical_pins.items():
         for i, part_i in enumerate(parts):
             for part_j in parts[i+1:]:
                 graphical_i = symbols_to_graphical_map[part_i]
@@ -45,16 +45,16 @@ def process_file(filename) -> list[PartCanDeriveFromPart]:
 
                 percentage = len(intersection) / len(union) * 100
                 if percentage >= 99.0:
-                    results.append(PartCanDeriveFromPart(part_i, part_j, percentage))
+                    results.append(PartCanDeriveFromPart(filename, part_i, part_j, percentage))
     return results
     
                     
 def print_results(results: list[PartCanDeriveFromPart]):
     for result in results:
         if result.similarity >= 99.9:
-            print(f"{result.a} can derive from {result.b}: Identical")
+            print(f"{os.path.basename(result.filename)}: {result.a} can derive from {result.b}: Identical")
         else:
-            print(f"{result.a} can derive from {result.b}: Similarity {result.similarity}%")
+            print(f"{os.path.basename(result.filename)}: {result.a} can derive from {result.b}: Similarity {result.similarity}%")
     
 
 if __name__ == "__main__":
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                     futures.append(executor.submit(process_file, os.path.join(args.filename, filename)))
             # Print results when they arrive
             for result in concurrent.futures.as_completed(futures):
-                print_results(results)
+                print_results(result.result())
     else:
         print_results(process_file(args.filename))
     

@@ -43,7 +43,7 @@ def process_file(filename) -> list[PartCanDeriveFromPart]:
                 intersection = graphical_i_set.intersection(graphical_j_set)
                 union = graphical_i_set.union(graphical_j_set)
 
-                percentage = len(intersection) / len(union) * 100
+                percentage = len(intersection) / len(union) * 100 if len(union) > 0 else 100.
                 if percentage >= 99.0:
                     results.append(PartCanDeriveFromPart(filename, part_i, part_j, percentage))
     return results

@@ -572,4 +572,5 @@ cat <<EOT > .gitignore
 *-bak*
 _autosave*
 \#auto_saved_files\#
+*.lck
 EOT
